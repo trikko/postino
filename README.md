@@ -127,11 +127,12 @@ new Email()
 | `addAttachment(path, mimeType?)` | Add file attachment |
 | `addEmbeddedFile(path, cid, mimeType?)` | Add embedded file for HTML |
 
-### Sending
+### Sending and saving
 
 | Method | Description |
 |--------|-------------|
 | `send(smtpUrl, username?, password?)` | Send email via SMTP |
+| `save(path)` | Save email as a .eml file |
 
 
 ## SMTP Configuration
