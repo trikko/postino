@@ -296,6 +296,33 @@ class Email
 		return true;
 	}
 
+	/**
+	 * Saves the email as a .eml file to the specified path.
+	 * The .eml format is a standard email format that can be opened by most email clients.
+	 *
+	 * Params:
+	 *     path = The file path where the .eml file will be saved
+	 *
+	 * Returns: Reference to this Email object for method chaining
+	 *
+	 * Throws: Exception if the file cannot be written to the specified path
+	 *
+	 * Example:
+	 * ---
+	 * email.setFrom("sender@example.com")
+	 *      .addTo("recipient@example.com")
+	 *      .setSubject("Test Email")
+	 *      .setPlainTextBody("Hello World!")
+	 *      .save("/path/to/email.eml");
+	 * ---
+	 */
+	auto save(string path)
+	{
+		import std.file : write;
+		write(path, build());
+		return this;
+	}
+
    private:
 
 	struct Attachment
