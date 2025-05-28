@@ -1,0 +1,7 @@
+{
+	"authors": [ "Andrea Fontana"],
+	"copyright": "Copyright © 2025, Andrea Fontana",
+	"description": "A simple and secure MIME email library for D with support for HTML, attachments, and embedded files",
+	"license": "MIT",
+	"name": "quickmail"
+}
