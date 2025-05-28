@@ -1,4 +1,4 @@
-module app;
+module quickmail;
 
 import std.algorithm : map;
 import std.array : array, join;
