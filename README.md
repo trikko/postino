@@ -107,29 +107,29 @@ new Email()
 
 ### Email Configuration (Chainable)
 
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `setFrom(address, name?)` | Set sender email and optional display name | `ref Email` |
-| `addTo(address, name?)` | Add recipient to "To" field | `ref Email` |
-| `addCc(address, name?)` | Add recipient to "Cc" field | `ref Email` |
-| `addBcc(address, name?)` | Add recipient to "Bcc" field | `ref Email` |
-| `setReplyTo(address, name?)` | Set reply-to address | `ref Email` |
-| `setSubject(subject)` | Set email subject | `ref Email` |
+| Method | Description |
+|--------|-------------|
+| `setFrom(address, name?)` | Set sender email and optional display name |
+| `addTo(address, name?)` | Add recipient to "To" field |
+| `addCc(address, name?)` | Add recipient to "Cc" field |
+| `addBcc(address, name?)` | Add recipient to "Bcc" field |
+| `setReplyTo(address, name?)` | Set reply-to address |
+| `setSubject(subject)` | Set email subject |
 
 ### Content (Chainable)
 
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `setPlainTextBody(text)` | Set plain text content | `ref Email` |
-| `setHtmlBody(html)` | Set HTML content | `ref Email` |
-| `addAttachment(path, mimeType?)` | Add file attachment | `ref Email` |
-| `addEmbeddedFile(path, cid, mimeType?)` | Add embedded file for HTML | `ref Email` |
+| Method | Description |
+|--------|-------------|
+| `setPlainTextBody(text)` | Set plain text content |
+| `setHtmlBody(html)` | Set HTML content |
+| `addAttachment(path, mimeType?)` | Add file attachment |
+| `addEmbeddedFile(path, cid, mimeType?)` | Add embedded file for HTML |
 
 ### Sending
 
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `send(smtpUrl, username?, password?)` | Send email via SMTP | `bool` |
+| Method | Description |
+|--------|-------------|
+| `send(smtpUrl, username?, password?)` | Send email via SMTP |
 
 
 ## SMTP Configuration
