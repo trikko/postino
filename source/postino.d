@@ -6,7 +6,7 @@ import std.algorithm.searching : canFind;
 import std.string : replace, toLower;
 import std.conv : to;
 import std.file : exists, read;
-import std.path : baseName, extension;ò
+import std.path : baseName, extension;
 import std.base64 : Base64;
 import std.datetime : Clock, SysTime;
 import std.random : uniform;
