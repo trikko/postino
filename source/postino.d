@@ -206,9 +206,19 @@ class Email
 	 *      .setHtmlBody("<img src='cid:logo'>");
 	 * ---
 	 */
-	auto addEmbeddedFile(string path, string cid = string.init, string mimeType = string.init)
+	auto addEmbeddedFile(string path, string cid, string mimeType = string.init)
 	{
-		this.embeddedFiles[cid] = path;
+		this.embeddedFiles[cid] = Attachment(string.init, path, [], getMimeType(path));
+		return this;
+	}
+
+	/// DITTO
+	auto addEmbeddedFile(ubyte[] data, string cid, string mimeType)
+	{
+		if (mimeType.length == 0)
+			mimeType = "application/octet-stream";
+
+		this.embeddedFiles[cid] = Attachment(string.init, string.init, data, mimeType);
 		return this;
 	}
 
@@ -228,9 +238,27 @@ class Email
 	 *      .addAttachment("/path/to/report.xlsx");
 	 * ---
 	 */
-	auto addAttachment(string path, string mimeType = string.init)
+	auto addAttachment(string path, string mimeType = string.init, string name = string.init)
 	{
-		this.attachments ~= path;
+		if (name.length == 0)
+			name = baseName(path);
+
+		this.attachments ~= Attachment(name, path, [], getMimeType(path));
+		return this;
+	}
+
+   /// DITTO
+	auto addAttachment(ubyte[] data, string mimeType, string name = string.init)
+	{
+		import std.uuid : randomUUID;
+
+		if (name.length == 0)
+			name = randomUUID().toString();
+
+		if (mimeType.length == 0)
+			mimeType = getMimeType(name);
+
+		this.attachments ~= Attachment(name, string.init, data, mimeType);
 		return this;
 	}
 
@@ -269,6 +297,14 @@ class Email
 	}
 
    private:
+
+	struct Attachment
+	{
+		string name;
+		string path;
+		ubyte[] data;
+		string mimeType;
+	}
 
 	struct Recipient
 	{
@@ -339,7 +375,7 @@ class Email
 		}
 
 		// Add attachments
-		foreach (attachment; attachments) {
+		foreach (i, attachment; attachments) {
 			result ~= "--" ~ mainBoundary ~ "\r\n";
 			result ~= buildAttachment(attachment);
 		}
@@ -419,19 +455,30 @@ class Email
 			.replace("\\", "\\\\"); // Escape backslash
 	}
 
-	string buildEmbeddedFile(string filePath, string contentId)
+	string buildEmbeddedFile(ref Attachment attachment, string contentId)
 	{
 		string result = "";
-		string mimeType = getMimeType(filePath);
+		string mimeType = attachment.mimeType;
 
 		result ~= "Content-Type: " ~ mimeType ~ "\r\n";
 		result ~= "Content-ID: <" ~ contentId ~ ">\r\n";
 		result ~= "Content-Disposition: inline\r\n";
 		result ~= "Content-Transfer-Encoding: base64\r\n\r\n";
 
-		// Read the file and encode it in base64
-		if (exists(filePath)) {
-			ubyte[] fileData = cast(ubyte[])read(filePath);
+		ubyte[] fileData;
+
+		// Check if the attachment is a file or data
+		if (attachment.path.length > 0) {
+			// Read from file
+			if (exists(attachment.path)) {
+				fileData = cast(ubyte[])read(attachment.path);
+			}
+		} else {
+			// Use the direct data
+			fileData = attachment.data;
+		}
+
+		if (fileData.length > 0) {
 			string base64Data = Base64.encode(fileData);
 
 			// Divide in lines of 76 characters as per RFC standard
@@ -443,19 +490,31 @@ class Email
 		return result;
 	}
 
-	string buildAttachment(string filePath)
+	string buildAttachment(ref Attachment attachment)
 	{
+
 		string result = "";
-		string mimeType = getMimeType(filePath);
-		string fileName = baseName(filePath);
+		string mimeType = attachment.mimeType;
+		string fileName = attachment.name;
 
 		result ~= "Content-Type: " ~ mimeType ~ "\r\n";
 		result ~= "Content-Disposition: attachment; filename=\"" ~ sanitizeFilename(fileName) ~ "\"\r\n";
 		result ~= "Content-Transfer-Encoding: base64\r\n\r\n";
 
-		// Read the file and encode it in base64
-		if (exists(filePath)) {
-			ubyte[] fileData = cast(ubyte[])read(filePath);
+		ubyte[] fileData;
+
+		// Check if the attachment is a file or data
+		if (attachment.path.length > 0) {
+			// Read from file
+			if (exists(attachment.path)) {
+				fileData = cast(ubyte[])read(attachment.path);
+			}
+		} else {
+			// Use the direct data
+			fileData = attachment.data;
+		}
+
+		if (fileData.length > 0) {
 			string base64Data = Base64.encode(fileData);
 
 			// Divide in lines of 76 characters as per RFC standard
@@ -574,8 +633,8 @@ class Email
 		return "<" ~ sanitizeEmailAddress(recipient.address) ~ ">";
 	}
 
-	string[string] embeddedFiles;
-	string[] attachments;
+	Attachment[string] embeddedFiles;
+	Attachment[] attachments;
 
 	Recipient from;
 	Recipient[] to;
