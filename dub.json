@@ -3,5 +3,5 @@
 	"copyright": "Copyright © 2025, Andrea Fontana",
 	"description": "A simple and secure SMTP library for D with support for MIME email, HTML mail with embedded files and attachments",
 	"license": "MIT",
-	"name": "quickmail"
+	"name": "postino"
 }
