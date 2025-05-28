@@ -1,4 +1,6 @@
-# QuickMail
+# postino
+
+*(italian word for «postman»)*
 
 A simple and secure MIME email library for D with support for HTML, attachments, and embedded files.
 
@@ -13,16 +15,16 @@ A simple and secure MIME email library for D with support for HTML, attachments,
 
 ### Installation
 
-Add QuickMail to your `dub.json` or use DUB directly:
+Add postino to your `dub.json` or use DUB directly:
 
 ```bash
-dub add quickmail
+dub add postino
 ```
 
 ### Basic Usage
 
 ```d
-import quickmail;
+import postino;
 
 void main()
 {
@@ -32,7 +34,7 @@ void main()
    email
    .setFrom("sender@example.com", "John Doe")
    .addTo("recipient@example.com", "Jane Smith")
-   .setSubject("Hello from QuickMail!")
+   .setSubject("Hello from postino!")
    .setPlainTextBody("Hello, this is a plain text email.")
    .setHtmlBody("<h1>Hello!</h1><p>This is an <b>HTML</b> email.</p>")
    .send("smtps://smtp.example.com:465", "username", "password");
@@ -134,7 +136,7 @@ new Email()
 
 ## SMTP Configuration
 
-QuickMail supports various SMTP configurations:
+postino supports various SMTP configurations:
 
 ```d
 // Gmail with app password
