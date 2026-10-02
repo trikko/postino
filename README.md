@@ -153,6 +153,14 @@ email.send("smtp://localhost:25");
 email.send("smtps://mail.example.com:465", "user", "pass");
 ```
 
+## Feedback & support
+Using postino? I'd love to hear what you're building with it, or what's missing.
+Write to me: the address is just **oss**, at the domain of [my website](https://andreafontana.it).
+
+postino is built in my spare time. If it's useful to you or your company,
+consider [sponsoring me on GitHub](https://github.com/sponsors/trikko)
+or [buying me a beer on PayPal](https://paypal.me/andreafontana) ❤️
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
