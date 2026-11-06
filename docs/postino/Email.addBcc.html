@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Function Email.addBcc</title>
+		<link rel="stylesheet" href="../css/style.min.css"/>
+		<script type="text/javascript" src="../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li>
+						<a class="module selected" href="../postino.html">postino</a>
+				<ul class="tree-view">
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="../postino/Email.html">Email</a>
+				</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Function Email.addBcc</h1><p>Adds a recipient to the email's "Bcc" (Blind Carbon Copy) field.
+ Multiple Bcc recipients can be added by calling this method multiple times.
+ Bcc recipients receive the email but are never written in its headers,
+ so the other recipients cannot see them.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addBcc</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">address</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">name</span> <span class="pun">=</span> <span class="kwd">null</span>
+				<br/>
+				<span class="pun">)</span><span class="pln"> </span><span class="kwd">return</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<section></section>
+<section><h2>Parameters</h2>
+<table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
+<tr><td id="address">address</td><td> The Bcc recipient's email address</td></tr>
+<tr><td id="name">name</td><td> Optional display name for the recipient</td></tr>
+</table>
+</section>
+<section><h2>Returns</h2>
+<p>Reference to this Email object for method chaining
+</p>
+</section>
+<section><h2>Throws</h2>
+<p>Exception if the address is not a valid email address
+</p>
+</section>
+<section><h2>Example</h2>
+<pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">addBcc</span><span class="pun">(</span><span class="str">"archive@example.com"</span><span class="pun">, </span><span class="str">"Email Archive"</span><span class="pun">)
+     <wbr/>.</span><span class="pln">addBcc</span><span class="pun">(</span><span class="str">"backup@example.com"</span><span class="pun">);</span></code></pre>
+</section>
+
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

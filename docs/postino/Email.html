@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Class Email</title>
+		<link rel="stylesheet" href="../css/style.min.css"/>
+		<script type="text/javascript" src="../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li>
+						<a class="module selected" href="../postino.html">postino</a>
+				<ul class="tree-view">
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="../postino/Email.html">Email</a>
+				</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Class Email</h1><p>An email message. Every setter returns the same object, so calls can be chained.
+ Addresses are checked when they are added; send() delivers to every To, Cc and Bcc
+ recipient, and save() writes the same message as an .eml file.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="kwd">class</span> <span class="typ">Email</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				
+				<section><h2>Methods</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.addAttachment.html" class="public">
+									<code>addAttachment</code>
+								</a>
+								<span class="tableEntryAnnotation">(path, mimeType, name)</span>
+							</td>
+							<td>Adds a file attachment to the email.
+ Attachments appear as downloadable files in the email client.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.addBcc.html" class="public">
+									<code>addBcc</code>
+								</a>
+								<span class="tableEntryAnnotation">(address, name)</span>
+							</td>
+							<td>Adds a recipient to the email's "Bcc" (Blind Carbon Copy) field.
+ Multiple Bcc recipients can be added by calling this method multiple times.
+ Bcc recipients receive the email but are never written in its headers,
+ so the other recipients cannot see them.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.addCc.html" class="public">
+									<code>addCc</code>
+								</a>
+								<span class="tableEntryAnnotation">(address, name)</span>
+							</td>
+							<td>Adds a recipient to the email's "Cc" (Carbon Copy) field.
+ Multiple Cc recipients can be added by calling this method multiple times.
+ Cc recipients receive the email and are listed in the "Cc" header.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.addEmbeddedFile.html" class="public">
+									<code>addEmbeddedFile</code>
+								</a>
+								<span class="tableEntryAnnotation">(path, cid, mimeType)</span>
+							</td>
+							<td>Adds an embedded file (inline attachment) to the email.
+ Embedded files can be referenced in HTML content using their Content-ID.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.addTo.html" class="public">
+									<code>addTo</code>
+								</a>
+								<span class="tableEntryAnnotation">(address, name)</span>
+							</td>
+							<td>Adds a recipient to the email's "To" field.
+ Multiple recipients can be added by calling this method multiple times.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.save.html" class="public">
+									<code>save</code>
+								</a>
+								<span class="tableEntryAnnotation">(path)</span>
+							</td>
+							<td>Saves the email as a .eml file to the specified path.
+ The .eml format is a standard email format that can be opened by most email clients.
+ The file contains exactly the message that send() would deliver: Bcc recipients are not in it.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.send.html" class="public">
+									<code>send</code>
+								</a>
+								<span class="tableEntryAnnotation">(smtpServerUrl, username, password, smtp)</span>
+							</td>
+							<td>Sends the email using the specified SMTP server.
+ The email is delivered to every To, Cc and Bcc recipient.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.setFrom.html" class="public">
+									<code>setFrom</code>
+								</a>
+								<span class="tableEntryAnnotation">(address, name)</span>
+							</td>
+							<td>Sets the sender's email address and optional display name.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.setHtmlBody.html" class="public">
+									<code>setHtmlBody</code>
+								</a>
+								<span class="tableEntryAnnotation">(body)</span>
+							</td>
+							<td>Sets the HTML body of the email.
+ This allows for rich formatting, images, and styling.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.setPlainTextBody.html" class="public">
+									<code>setPlainTextBody</code>
+								</a>
+								<span class="tableEntryAnnotation">(body)</span>
+							</td>
+							<td>Sets the plain text body of the email.
+ This will be displayed in email clients that don't support HTML.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.setReplyTo.html" class="public">
+									<code>setReplyTo</code>
+								</a>
+								<span class="tableEntryAnnotation">(address, name)</span>
+							</td>
+							<td>Sets the "Reply-To" email address for the email.
+ This determines where replies to this email will be sent.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.setSubject.html" class="public">
+									<code>setSubject</code>
+								</a>
+								<span class="tableEntryAnnotation">(subject)</span>
+							</td>
+							<td>Sets the email subject line.
+ The subject will be automatically encoded if it contains non-ASCII characters.
+</td>
+						</tr>
+					</table>
+				</section>
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

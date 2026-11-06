@@ -1,7 +1,15 @@
 {
-	"authors": [ "Andrea Fontana"],
-	"copyright": "Copyright © 2025, Andrea Fontana",
+	"name": "postino",
 	"description": "A simple and secure SMTP library for D with support for MIME email, HTML mail with embedded files and attachments",
+	"authors": [
+		"Andrea Fontana"
+	],
+	"copyright": "Copyright © 2025, Andrea Fontana",
 	"license": "MIT",
-	"name": "postino"
+	"homepage": "https://github.com/trikko/postino",
+	"-ddoxTool": "scod",
+	"-ddoxFilterArgs": [
+		"--min-protection=Public",
+		"--only-documented"
+	]
 }

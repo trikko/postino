@@ -4,12 +4,18 @@
 
 A simple and secure MIME email library for D with support for HTML, attachments, and embedded files.
 
+**Documentation:** [API reference](https://trikko.github.io/postino/) ·
+[for AI agents](#using-postino-with-an-ai-agent) · `dub add postino`
+
 ## Features
 
 - 🚀 **Simple API** - Send emails with just a few lines of code
 - 📧 **MIME Support** - Full multipart/alternative and multipart/related support
 - 📎 **Attachments** - Support for file attachments and embedded images
 - 🎨 **HTML Emails** - Send rich HTML emails with embedded images
+- 🔒 **Secure** - TLS or STARTTLS (required when sending a password), addresses validated, no header injection
+- 🙈 **Real Bcc** - To, Cc and Bcc all receive the email, Bcc recipients stay hidden
+- 💾 **Save as .eml** - Write the message to a file instead of sending it, e.g. in tests
 
 ## Quick Start
 
@@ -102,7 +108,7 @@ new Email()
     `)
     .addEmbeddedFile("/path/to/banner.jpg", "banner")
     .addAttachment("/path/to/catalog.pdf")
-    .send("smtps://smtp.example.com:587", "marketing@example.com", "password");
+    .send("smtp://smtp.example.com:587", "marketing@example.com", "password");
 ```
 
 ## API Reference
@@ -114,7 +120,7 @@ new Email()
 | `setFrom(address, name?)` | Set sender email and optional display name |
 | `addTo(address, name?)` | Add recipient to "To" field |
 | `addCc(address, name?)` | Add recipient to "Cc" field |
-| `addBcc(address, name?)` | Add recipient to "Bcc" field |
+| `addBcc(address, name?)` | Add hidden recipient: receives the email, never written in the headers |
 | `setReplyTo(address, name?)` | Set reply-to address |
 | `setSubject(subject)` | Set email subject |
 
@@ -124,33 +130,57 @@ new Email()
 |--------|-------------|
 | `setPlainTextBody(text)` | Set plain text content |
 | `setHtmlBody(html)` | Set HTML content |
-| `addAttachment(path, mimeType?)` | Add file attachment |
-| `addEmbeddedFile(path, cid, mimeType?)` | Add embedded file for HTML |
+| `addAttachment(path, mimeType?, name?)` | Add file attachment |
+| `addAttachment(data, mimeType, name?)` | Add attachment from memory |
+| `addEmbeddedFile(path, cid, mimeType?)` | Add embedded file for HTML (`<img src="cid:...">`) |
+| `addEmbeddedFile(data, cid, mimeType)` | Add embedded file from memory |
+
+Invalid addresses, Content-IDs and MIME types throw an `Exception` as soon as they are added.
 
 ### Sending and saving
 
 | Method | Description |
 |--------|-------------|
-| `send(smtpUrl, username?, password?)` | Send email via SMTP |
-| `save(path)` | Save email as a .eml file |
+| `send(smtpUrl, username?, password?, smtp?)` | Send email via SMTP to every To, Cc and Bcc recipient |
+| `save(path)` | Save the same message as a .eml file, without sending it |
 
 
 ## SMTP Configuration
 
-postino supports various SMTP configurations:
+The URL decides how the connection is secured:
+
+| URL | Security |
+|---|---|
+| `smtps://host:465` | TLS from the start (implicit TLS) |
+| `smtp://host:587` with username and password | STARTTLS, required: if the server does not offer it, `send` fails and the password is never sent |
+| `smtp://host:25` without credentials | plain SMTP, as the server allows |
+| `smtp://localhost:...` | plain SMTP, also with credentials (local test servers) |
+
+Port 587 is STARTTLS: use `smtp://`, not `smtps://`, with it.
 
 ```d
 // Gmail with app password
-email.send("smtps://smtp.gail.com:465", "user@gmail.com", "app-password");
+email.send("smtps://smtp.gmail.com:465", "user@gmail.com", "app-password");
 
-// Outlook/Hotmail
-email.send("smtps://smtp-mail.outlook.com:587", "user@outlook.com", "password");
+// Outlook/Hotmail (STARTTLS)
+email.send("smtp://smtp-mail.outlook.com:587", "user@outlook.com", "password");
 
 // Local SMTP server (no auth)
 email.send("smtp://localhost:25");
 
 // Custom SMTP with TLS
 email.send("smtps://mail.example.com:465", "user", "pass");
+```
+
+Pass a configured `std.net.curl.SMTP` as last argument for timeouts and other curl options:
+
+```d
+import std.net.curl : SMTP;
+import core.time : seconds;
+
+auto smtp = SMTP();
+smtp.connectTimeout = 10.seconds;
+email.send("smtp://smtp.example.com:587", "user", "password", smtp);
 ```
 
 ## Feedback & support
@@ -160,6 +190,59 @@ Write to me: the address is just **oss**, at the domain of [my website](https://
 postino is built in my spare time. If it's useful to you or your company,
 consider [sponsoring me on GitHub](https://github.com/sponsors/trikko)
 or [buying me a beer on PayPal](https://paypal.me/andreafontana) ❤️
+
+## Using postino with an AI agent
+
+postino is small and not well known, so it is barely in the training data of
+the models: a model left to guess writes code for another email library, or
+invents one. Give it the reference instead:
+
+* [SKILL.md](https://trikko.github.io/postino/SKILL.md): the rules that are
+  easiest to get wrong, as a skill. [AGENTS.md](https://trikko.github.io/postino/AGENTS.md)
+  is the same text without the front matter, for tools that want a rules file
+  (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, ...).
+* [llms-full.txt](https://trikko.github.io/postino/llms-full.txt): the whole API;
+  [llms.txt](https://trikko.github.io/postino/llms.txt): a short overview.
+
+The easiest way: ask your agent to do it.
+
+> Install the skill at https://trikko.github.io/postino/SKILL.md. It is the
+> reference for postino, the D email library I am using.
+
+Or by hand: a skill is a folder with `SKILL.md` in it (`llms-full.txt` next to
+it saves a download).
+
+| Tool | For all projects | For one project |
+|---|---|---|
+| Claude Code | `~/.claude/skills/postino/` | `.claude/skills/postino/` |
+| Antigravity (IDE, 2.0) | `~/.gemini/config/skills/postino/` | `.agents/skills/postino/` |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/postino/` | `.agents/skills/postino/` |
+| Gemini CLI | `~/.gemini/skills/postino/` | `.gemini/skills/postino/` |
+| Codex | `~/.agents/skills/postino/` | `.agents/skills/postino/` |
+
+For example, for Claude Code:
+
+```sh
+mkdir -p ~/.claude/skills/postino && cd ~/.claude/skills/postino
+curl -fsSLO https://trikko.github.io/postino/SKILL.md
+curl -fsSLO https://trikko.github.io/postino/llms-full.txt
+```
+
+The skill is loaded when the task is about postino or sending email in D; in
+Claude Code you can also call it with `/postino`.
+
+## Development
+
+```sh
+dub test            # unit tests, no SMTP server needed
+tests/mailpit.sh    # end-to-end tests: sends to two Mailpit servers in docker and checks what arrived
+tools/docs.sh       # regenerate the documentation in docs/
+```
+
+The html reference in `docs/`, served by GitHub Pages, is generated from the
+comments in the source with `tools/docs.sh` (ddox with the scod skin).
+`docs/AGENTS.md`, `docs/llms.txt` and `docs/llms-full.txt` are written by hand;
+`docs/SKILL.md` is generated from `AGENTS.md`.
 
 ## License
 

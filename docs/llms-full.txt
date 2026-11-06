@@ -1,0 +1,266 @@
+# postino: MIME email over SMTP for D — full reference
+
+postino is a library for the D programming language that builds MIME emails (plain text, HTML, embedded images, attachments) and sends them over SMTP through libcurl (`std.net.curl`), or saves them as `.eml` files. One class, `Email`, with chainable setters. MIT license. `import postino;`.
+
+This file documents version 0.1.6; see "Versions" at the end for what 0.1.5 and earlier do differently.
+
+- Rules for agents: https://trikko.github.io/postino/AGENTS.md
+- API documentation: https://trikko.github.io/postino/
+- Source: https://github.com/trikko/postino
+
+## Installation
+
+`dub add postino`. dmd or ldc2. postino uses `std.net.curl`, which loads libcurl at run time: it must be installed where the program runs (it is on most Linux and macOS systems; on Windows it ships with dmd).
+
+## Email
+
+```d
+auto email = new Email();
+```
+
+Every setter below returns the same `Email`, so calls can be chained. An `Email` is one message: there is no reset and no way to remove a recipient or an attachment. Build a new one for each message.
+
+## Addresses
+
+```d
+Email setFrom(string address, string name = string.init);
+Email addTo(string address, string name = string.init);
+Email addCc(string address, string name = string.init);
+Email addBcc(string address, string name = string.init);
+Email setReplyTo(string address, string name = string.init);
+```
+
+- `address` is only the address (`"alice@example.com"`); the display name is `name`. `"Alice <alice@example.com>"` as address is invalid.
+- Addresses are checked when they are added, and an invalid one throws `Exception` at once. Rejected: an empty address, more than 254 characters, spaces and control characters (CR and LF included: no header injection), any of `()<>[]\,;:"`, not exactly one `@`, a local part (before `@`) empty or longer than 64 characters, a local part that starts or ends with a dot or contains `..`, an empty domain, empty domain labels (`a@.com`, `a@b..com`), labels that start or end with `-`. Quoted local parts (`"john doe"@example.com`) are not supported. Non-ASCII characters are accepted as they are.
+- `addTo`, `addCc` and `addBcc` can be called many times; `setFrom` and `setReplyTo` replace the previous value.
+- **To** and **Cc** recipients are listed in the headers. **Bcc** recipients receive the email but are never written in the message, not even in the file of `save`. All three are in the SMTP envelope (`RCPT TO`).
+- If there are no To recipients (only Cc or Bcc), the header is `To: undisclosed-recipients:;`.
+- Display names are UTF-8: names with non-ASCII characters are encoded as RFC 2047 encoded-words (`=?UTF-8?B?...?=`), names with `"\,;:<>@[]().` are quoted and escaped. CR, LF and NUL are removed.
+
+```d
+email.setFrom("noreply@example.com", "Example Srl")
+     .addTo("alice@example.com", "Alice Rossi")
+     .addTo("bob@example.com")
+     .addCc("manager@example.com", "Dr. Manager")      // quoted: "Dr. Manager"
+     .addBcc("archive@example.com")                    // not in the headers
+     .setReplyTo("support@example.com", "Supporto Clienti");
+```
+
+## Subject and body
+
+```d
+Email setSubject(string subject);
+Email setPlainTextBody(string body);
+Email setHtmlBody(string body);
+```
+
+- All text is UTF-8. The subject is RFC 2047 encoded if it contains non-ASCII characters, split into words of at most 75 characters on folded lines; CR, LF and NUL are removed.
+- Bodies are sent as `charset="UTF-8"` with `Content-Transfer-Encoding: quoted-printable`: lines end with CRLF and are at most 76 characters, whatever the input. `\n`, `\r\n` and `\r` line endings are all accepted. HTML on a single long line is fine.
+- With both bodies the email is `multipart/alternative`: the client shows the HTML and falls back on the text. Always set a plain text body too when sending HTML: spam filters and text-only clients use it.
+- With neither, the email has an empty text body.
+
+## Embedded files (images in the HTML)
+
+```d
+Email addEmbeddedFile(string path, string cid, string mimeType = string.init);
+Email addEmbeddedFile(ubyte[] data, string cid, string mimeType);
+```
+
+- The HTML shows the file with `cid:` and the same id: `addEmbeddedFile("logo.png", "logo")` and `<img src="cid:logo">`.
+- `cid` is printable ASCII without spaces and without `<>()[]\,;:"`: letters, digits, `.`, `-`, `_`, `@` are safe. An invalid cid throws. The same cid added twice keeps the last.
+- `mimeType`: if empty, guessed from the extension of `path` (`image/png`, `image/jpeg`, `image/gif`, `image/svg+xml`, `image/webp`, ...); for `data` the default is `application/octet-stream`, so always give it (`"image/png"`). See "MIME types".
+- Embedded files make the email `multipart/related`, with `Content-Disposition: inline` (and the file name, for `path`).
+
+```d
+email.setHtmlBody(`<h1>Hello</h1><img src="cid:banner" width="600">`)
+     .addEmbeddedFile("/srv/app/banner.jpg", "banner");
+
+ubyte[] png = renderChart();
+email.addEmbeddedFile(png, "chart", "image/png");
+```
+
+## Attachments
+
+```d
+Email addAttachment(string path, string mimeType = string.init, string name = string.init);
+Email addAttachment(ubyte[] data, string mimeType, string name = string.init);
+```
+
+- `path`: `name` defaults to the file name of `path` (`baseName`), `mimeType` to the type guessed from the extension.
+- `data`: give a `name`, or the recipient sees a random UUID as file name. If `mimeType` is empty it is guessed from the extension of `name`.
+- The file name can be any UTF-8: non-ASCII names are written as RFC 2231 `filename*=UTF-8''...` with an ASCII `filename="..."` fallback (non-ASCII characters replaced by `_`). Quotes and backslashes are escaped, CR and LF removed.
+- Attachments make the email `multipart/mixed`. Content is base64.
+
+```d
+email.addAttachment("/tmp/report.pdf")                         // application/pdf, "report.pdf"
+     .addAttachment("/tmp/export.bin", "text/csv", "data.csv") // type and name given
+     .addAttachment(cast(ubyte[]) csv, "text/csv", "orders.csv");
+```
+
+### Files are read late
+
+`addAttachment(path)` and `addEmbeddedFile(path, cid)` store the path only. The file is read by `send` and `save`, every time; if it does not exist then, they throw `Exception("File not found: ...")`. Do not delete the file before sending. The `ubyte[]` overloads keep a reference to the array: do not change it before sending.
+
+## MIME types
+
+A given `mimeType` must be `type/subtype` made of RFC 2045 token characters, with no parameters: `"image/png"`, `"application/vnd.ms-excel"`. `"text/plain; charset=utf-8"`, `"png"` or anything with CR/LF throws `Exception`. The extension table covers common text, image, font, archive, office, audio and video formats; unknown extensions are `application/octet-stream`.
+
+## Sending
+
+```d
+bool send(string smtpServerUrl, string username = string.init, string password = string.init, SMTP smtp = SMTP());
+```
+
+- Blocking: connects, authenticates if `username` and `password` are both non-empty, sends to every To, Cc and Bcc recipient, and disconnects. Returns `true`; every error is an exception, never `false`.
+- Throws `Exception` if there is no sender (`setFrom`), no recipient at all, or a file to attach is missing; `CurlException` for connection, TLS, authentication or server errors (a rejected recipient included).
+- The envelope sender (`MAIL FROM`) is the `setFrom` address.
+
+### SMTP URL and TLS
+
+| URL | Port | Security |
+|---|---|---|
+| `smtps://smtp.example.com:465` | 465 | implicit TLS: encrypted from the start |
+| `smtp://smtp.example.com:587` + credentials | 587 | STARTTLS, required: fails if the server does not offer it |
+| `smtp://smtp.example.com:25`, no credentials | 25 | plain, as the server allows (relays) |
+| `smtp://localhost:1025` | any | plain, also with credentials (local test servers) |
+
+- `smtps://` with port 587 does **not** work: the server on 587 expects plain SMTP followed by STARTTLS. Use `smtp://host:587`.
+- With `smtp://`, a username and a password, postino sets `CURLOPT_USE_SSL` to `CURLUSESSL_ALL`: the connection must switch to TLS with STARTTLS before authenticating, so the password never travels in clear. A server, or someone in the middle, that does not offer STARTTLS makes `send` throw. The exception is a server on this machine: `localhost`, `127.x.x.x`, `[::1]`.
+- Without credentials `smtp://` is left as it is (no STARTTLS), so relays on port 25 with self-signed certificates keep working.
+- Certificates are verified by libcurl. For a self-signed server certificate, configure an `SMTP` (see below), e.g. `smtp.handle.set(CurlOption.ssl_verifypeer, 0)` (with `import etc.c.curl : CurlOption;`), only for tests.
+- An optional path in the URL is the name sent with EHLO: `smtp://smtp.example.com:587/client.example.com`.
+
+Common providers:
+
+```d
+email.send("smtps://smtp.gmail.com:465", "user@gmail.com", "app-password");       // Gmail: app password
+email.send("smtp://smtp.gmail.com:587", "user@gmail.com", "app-password");        // same, STARTTLS
+email.send("smtp://smtp-mail.outlook.com:587", "user@outlook.com", "password");    // Outlook (if basic auth is enabled)
+email.send("smtp://localhost:25");                                                 // local MTA
+email.send("smtp://localhost:1025");                                               // Mailpit, MailHog
+```
+
+### A configured SMTP
+
+The last argument is a `std.net.curl.SMTP`, for timeouts, proxies and other curl options. postino sets its URL, authentication, recipients and message, then performs it.
+
+```d
+import std.net.curl : SMTP;
+import core.time : seconds;
+
+auto smtp = SMTP();
+smtp.connectTimeout = 10.seconds;
+smtp.dataTimeout = 30.seconds;
+email.send("smtp://smtp.example.com:587", "user", "password", smtp);
+```
+
+Read the credentials from the environment or a secrets store, not from the source code.
+
+### Many emails
+
+Each `send` opens its own connection and waits for the server. For newsletters, send one `Email` per recipient (with `addTo`, not a long `addBcc` list), and keep sending out of the request path of a web server: hand the job to a queue (for example pacchettino) and send from a worker.
+
+## Saving
+
+```d
+Email save(string path);
+```
+
+Writes the message as an `.eml` file (RFC 5322, CRLF line endings) that mail clients open. It is exactly what `send` would deliver: same headers, Bcc excluded. Nothing is sent. Throws like `send` for a missing sender, missing recipients or a missing file, and if the file cannot be written. Use it in tests and to preview an email.
+
+```d
+email.save("/tmp/preview.eml");
+```
+
+## The message
+
+Headers, in order: `MIME-Version: 1.0`, `Date` (local time, RFC 5322), `Message-ID` (`<uuid@domain-of-sender>`), `From`, `To`, `Cc`, `Reply-To`, `Subject`. Then the body, nested only as needed:
+
+```
+multipart/mixed                  (only with attachments)
+├── multipart/related            (only with embedded files)
+│   ├── multipart/alternative    (only with both text and html)
+│   │   ├── text/plain
+│   │   └── text/html
+│   └── embedded files (inline, Content-ID)
+└── attachments (attachment, filename)
+```
+
+Boundaries, Date and Message-ID are new every time the message is built: sending or saving the same `Email` twice gives two distinct messages.
+
+## Errors
+
+| When | Exception |
+|---|---|
+| `setFrom`, `addTo`, `addCc`, `addBcc`, `setReplyTo` with an invalid address | `Exception` |
+| `addEmbeddedFile` with an invalid cid or MIME type, `addAttachment` with an invalid MIME type | `Exception` |
+| `send`/`save` without sender or without recipients | `Exception` |
+| `send`/`save` with a missing file | `Exception` |
+| `save` cannot write the file | `FileException` |
+| `send`: connection, TLS, STARTTLS missing, authentication, rejected recipient | `CurlException` |
+
+## Worked example: a report with a chart
+
+```d
+import postino;
+import std.process : environment;
+
+void sendReport(string[] recipients, ubyte[] chartPng, string csv)
+{
+    auto email = new Email()
+        .setFrom("reports@example.com", "Reports")
+        .setReplyTo("data-team@example.com", "Data Team")
+        .setSubject("Report settimanale: è pronto")
+        .setPlainTextBody("The weekly report is attached.\nThe chart is in the HTML version.")
+        .setHtmlBody(`<p>The weekly report is attached.</p><img src="cid:chart" alt="chart">`)
+        .addEmbeddedFile(chartPng, "chart", "image/png")
+        .addAttachment(cast(ubyte[]) csv, "text/csv", "report.csv");
+
+    foreach (r; recipients)
+        email.addBcc(r);   // throws for an invalid address: validate before if it comes from users
+
+    email.send("smtp://smtp.example.com:587",
+        environment["SMTP_USER"], environment["SMTP_PASSWORD"]);
+}
+```
+
+## Worked example: testing without a server
+
+```d
+unittest
+{
+    import std.file : readText, remove, tempDir;
+    import std.path : buildPath;
+    import std.algorithm : canFind;
+
+    auto path = buildPath(tempDir, "welcome.eml");
+    scope(exit) remove(path);
+
+    new Email()
+        .setFrom("noreply@example.com")
+        .addTo("new.user@example.com")
+        .setSubject("Welcome")
+        .setPlainTextBody("Hello!")
+        .save(path);
+
+    auto eml = readText(path);
+    assert(eml.canFind("\r\nSubject: Welcome\r\n"));
+    assert(eml.canFind("\r\nTo: new.user@example.com\r\n"));
+}
+```
+
+For an end-to-end test, run Mailpit (`smtp://localhost:1025`) and read the messages from its web UI or API: postino's own `tests/mailpit.sh` does this in docker.
+
+## Limits
+
+- Blocking, one connection per `send`; no pooling, no async API.
+- No custom headers (`Sender`, `List-Unsubscribe`, `X-...`), no priority, no read receipts.
+- No DKIM signing (let the SMTP server sign), no S/MIME or PGP.
+- No templates: build the strings yourself.
+- Authentication is what libcurl negotiates with username and password (PLAIN, LOGIN, CRAM-MD5, ...); no OAuth2/XOAUTH2.
+- Quoted local parts in addresses are not supported.
+- No receiving mail (IMAP, POP3).
+
+## Versions
+
+Up to 0.1.5: only To recipients received the email (Cc and Bcc were in the headers but not in the SMTP envelope), Bcc recipients were written in the headers, `smtp://` never used STARTTLS (credentials in clear), invalid addresses threw only at `send`, CR/LF in addresses were removed instead of rejected, the cid was not checked, the `mimeType` argument of the path overloads was ignored, bodies were sent as 8-bit without Content-Transfer-Encoding, attachments were in `multipart/related`, a missing file was sent empty, and `Date`/`Message-ID` were missing. `save` came with 0.1.5. On those versions do not use `addCc`/`addBcc` and do not send credentials over `smtp://`; upgrade.

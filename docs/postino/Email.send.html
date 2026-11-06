@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Function Email.send</title>
+		<link rel="stylesheet" href="../css/style.min.css"/>
+		<script type="text/javascript" src="../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li>
+						<a class="module selected" href="../postino.html">postino</a>
+				<ul class="tree-view">
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="../postino/Email.html">Email</a>
+				</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Function Email.send</h1><p>Sends the email using the specified SMTP server.
+ The email is delivered to every To, Cc and Bcc recipient.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="typ">bool</span> <span class="pln">send</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">smtpServerUrl</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">username</span> <span class="pun">=</span> <span class="kwd">null</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">password</span> <span class="pun">=</span> <span class="kwd">null</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">net<wbr/></span><span class="pun">.</span><span class="pln">curl<wbr/></span><span class="pun">.</span><span class="pln">SMTP</span> <span class="pln">smtp</span> <span class="pun">=</span> <span class="pln">opCall</span><span class="pun">()</span>
+				<br/>
+				<span class="pun">)</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<section><p>Use "smtps://" for implicit TLS (usually port 465) and "smtp://" for
+ plain SMTP (port 25) or STARTTLS (usually port 587). With "smtp://" and a
+ username and password, STARTTLS is required, so the credentials never
+ travel in clear: the server must support it, or send() throws.
+ Servers on localhost are the exception.
+</p>
+</section>
+<section><h2>Parameters</h2>
+<table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
+<tr><td id="smtpServerUrl">smtpServerUrl</td><td> SMTP server URL (e.g., "smtps://smtp.gmail.com:465" or "smtp://smtp.example.com:587")</td></tr>
+<tr><td id="username">username</td><td> SMTP authentication username (optional)</td></tr>
+<tr><td id="password">password</td><td> SMTP authentication password (optional)</td></tr>
+<tr><td id="smtp">smtp</td><td> Pre-configured SMTP object (optional)</td></tr>
+</table>
+</section>
+<section><h2>Returns</h2>
+<p>true if the email was sent successfully
+</p>
+</section>
+<section><h2>Throws</h2>
+<p>Exception if the email has no sender or no recipients, if a file to attach is missing,
+         or if the SMTP operation fails (CurlException)
+</p>
+</section>
+<section><h2>Example</h2>
+<pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">send</span><span class="pun">(</span><span class="str">"smtps://smtp.gmail.com:465"</span><span class="pun">, </span><span class="str">"user@gmail.com"</span><span class="pun">, </span><span class="str">"app_password"</span><span class="pun">);
+</span><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">send</span><span class="pun">(</span><span class="str">"smtp://smtp.example.com:587"</span><span class="pun">, </span><span class="str">"user"</span><span class="pun">, </span><span class="str">"password"</span><span class="pun">); </span><span class="com">// STARTTLS
+</span><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">send</span><span class="pun">(</span><span class="str">"smtp://localhost:25"</span><span class="pun">); </span><span class="com">// No authentication</span></code></pre>
+</section>
+
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>
