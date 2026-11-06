@@ -33,6 +33,29 @@ import std.algorithm.searching : startsWith, endsWith, count;
 import etc.c.curl : CurlOption, CurlUseSSL;
 
 /**
+ * Thrown by postino for invalid input: an invalid address, header, Content-ID or MIME type,
+ * a missing sender, recipient or file. Errors of the connection and of the SMTP server
+ * are std.net.curl.CurlException.
+ */
+class PostinoException : Exception
+{
+	this(string msg, string file = __FILE__, size_t line = __LINE__) @safe pure nothrow
+	{
+		super(msg, file, line);
+	}
+}
+
+/**
+ * An OAuth 2.0 access token, for Email.send(url, username, OAuth2(token)).
+ * A type of its own, so that a token can't be passed as a password by mistake.
+ */
+struct OAuth2
+{
+	/// The access token, as given by the provider (Google, Microsoft, ...)
+	string accessToken;
+}
+
+/**
  * An email message. Every setter returns the same object, so calls can be chained.
  * Addresses are checked when they are added; send() delivers to every To, Cc and Bcc
  * recipient, and save() writes the same message as an .eml file.
@@ -48,7 +71,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if the address is not a valid email address
+	 * Throws: PostinoException if the address is not a valid email address
 	 *
 	 * Example:
 	 * ---
@@ -72,7 +95,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if the address is not a valid email address
+	 * Throws: PostinoException if the address is not a valid email address
 	 *
 	 * Example:
 	 * ---
@@ -118,7 +141,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if the address is not a valid email address
+	 * Throws: PostinoException if the address is not a valid email address
 	 *
 	 * Example:
 	 * ---
@@ -144,7 +167,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if the address is not a valid email address
+	 * Throws: PostinoException if the address is not a valid email address
 	 *
 	 * Example:
 	 * ---
@@ -168,7 +191,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if the address is not a valid email address
+	 * Throws: PostinoException if the address is not a valid email address
 	 *
 	 * Example:
 	 * ---
@@ -225,6 +248,34 @@ class Email
 	}
 
 	/**
+	 * Adds a custom header, e.g. List-Unsubscribe, In-Reply-To, References or X-Mailer.
+	 * The same header can be added more than once; headers are written in the order they are added.
+	 * Non-ASCII values are encoded according to RFC 2047.
+	 *
+	 * The headers that postino writes itself can't be added: MIME-Version, Date, Message-ID,
+	 * From, To, Cc, Bcc, Reply-To, Subject and the Content-* headers.
+	 *
+	 * Params:
+	 *     name = Header name, e.g. "List-Unsubscribe"
+	 *     value = Header value, without CR or LF
+	 *
+	 * Returns: Reference to this Email object for method chaining
+	 *
+	 * Throws: PostinoException if the name is not valid or is reserved, or the value contains CR, LF or NUL
+	 *
+	 * Example:
+	 * ---
+	 * email.addHeader("List-Unsubscribe", "<https://example.com/unsubscribe?id=42>, <mailto:unsubscribe@example.com>")
+	 *      .addHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+	 * ---
+	 */
+	auto addHeader(string name, string value)
+	{
+		this.headers ~= Header(validateHeaderName(name), validateHeaderValue(name, value));
+		return this;
+	}
+
+	/**
 	 * Adds an embedded file (inline attachment) to the email.
 	 * Embedded files can be referenced in HTML content using their Content-ID.
 	 *
@@ -235,7 +286,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if cid or mimeType are not valid. A missing file is reported by send() and save()
+	 * Throws: PostinoException if cid or mimeType are not valid. A missing file is reported by send() and save()
 	 *
 	 * Example:
 	 * ---
@@ -273,7 +324,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if mimeType is not valid. A missing file is reported by send() and save()
+	 * Throws: PostinoException if mimeType is not valid. A missing file is reported by send() and save()
 	 *
 	 * Example:
 	 * ---
@@ -308,6 +359,62 @@ class Email
 		return this;
 	}
 
+	/// Removes every recipient added with addTo().
+	auto clearTo() { this.to = null; return this; }
+
+	/// Removes every recipient added with addCc().
+	auto clearCc() { this.cc = null; return this; }
+
+	/// Removes every recipient added with addBcc().
+	auto clearBcc() { this.bcc = null; return this; }
+
+	/// Removes every header added with addHeader().
+	auto clearHeaders() { this.headers = null; return this; }
+
+	/// Removes every file added with addEmbeddedFile().
+	auto clearEmbeddedFiles() { this.embeddedFiles = null; return this; }
+
+	/// Removes every file added with addAttachment().
+	auto clearAttachments() { this.attachments = null; return this; }
+
+	/**
+	 * Returns a copy of this email, to change it without touching the original:
+	 * for example the same message for many recipients, one at a time.
+	 * The copy shares the data of the attachments added from memory, so don't modify those arrays.
+	 *
+	 * Example:
+	 * ---
+	 * auto newsletter = new Email()
+	 *     .setFrom("news@example.com")
+	 *     .setSubject("News")
+	 *     .setHtmlBody(html);
+	 *
+	 * auto smtp = SMTP(); // the same SMTP object reuses the connection
+	 *
+	 * foreach (subscriber; subscribers)
+	 *     newsletter.clone()
+	 *         .addTo(subscriber.email, subscriber.name)
+	 *         .addHeader("List-Unsubscribe", "<https://example.com/unsubscribe?id=" ~ subscriber.id ~ ">")
+	 *         .send("smtp://smtp.example.com:587", "user", "password", smtp);
+	 * ---
+	 */
+	Email clone()
+	{
+		auto copy = new Email();
+		copy.from = from;
+		copy.to = to.dup;
+		copy.cc = cc.dup;
+		copy.bcc = bcc.dup;
+		copy.replyTo = replyTo;
+		copy.subject = subject;
+		copy.headers = headers.dup;
+		copy.plainTextBody = plainTextBody;
+		copy.htmlBody = htmlBody;
+		copy.embeddedFiles = embeddedFiles.dup;
+		copy.attachments = attachments.dup;
+		return copy;
+	}
+
 	/**
 	 * Sends the email using the specified SMTP server.
 	 * The email is delivered to every To, Cc and Bcc recipient.
@@ -326,7 +433,7 @@ class Email
 	 *
 	 * Returns: true if the email was sent successfully
 	 *
-	 * Throws: Exception if the email has no sender or no recipients, if a file to attach is missing,
+	 * Throws: PostinoException if the email has no sender or no recipients, if a file to attach is missing,
 	 *         or if the SMTP operation fails (CurlException)
 	 *
 	 * Example:
@@ -340,24 +447,45 @@ class Email
 	{
 		immutable hasCredentials = username.length > 0 && password.length > 0;
 
-		smtp.url = smtpServerUrl;
-
-		// Never send credentials in clear: plain smtp:// must upgrade the connection with STARTTLS
-		if (hasCredentials && requiresStartTls(smtpServerUrl))
-			smtp.handle.set(CurlOption.use_ssl, CurlUseSSL.all);
-
 		if (hasCredentials)
 			smtp.setAuthentication(username, password);
 
-		// Build first: it checks sender, recipients and files before anything is sent
-		smtp.message = build();
+		return deliver(smtpServerUrl, hasCredentials, smtp);
+	}
 
-		// Envelope recipients: To, Cc and Bcc. Bcc is not written in the headers.
-		smtp.mailTo = envelopeRecipients().map!(r => formatEmailOnly(r).to!(const(char)[])).array;
-		smtp.mailFrom = formatEmailOnly(from);
+	/**
+	 * Sends the email authenticating with an OAuth 2.0 access token (SASL XOAUTH2),
+	 * as Gmail and Microsoft 365 require when passwords are not allowed.
+	 * Getting and refreshing the token is up to you; postino only sends it.
+	 *
+	 * As with the password version, "smtp://" requires STARTTLS, except on localhost.
+	 *
+	 * Params:
+	 *     smtpServerUrl = SMTP server URL (e.g., "smtp://smtp.office365.com:587" or "smtps://smtp.gmail.com:465")
+	 *     username = The account the token belongs to, usually its email address
+	 *     auth = The OAuth 2.0 access token, as OAuth2(token)
+	 *     smtp = Pre-configured SMTP object (optional)
+	 *
+	 * Returns: true if the email was sent successfully
+	 *
+	 * Throws: PostinoException if username or the token are empty, if the email has no sender or
+	 *         no recipients, or if a file to attach is missing;
+	 *         CurlException if the server refuses the token or the SMTP operation fails
+	 *
+	 * Example:
+	 * ---
+	 * email.send("smtp://smtp.office365.com:587", "user@example.com", OAuth2(accessToken));
+	 * ---
+	 */
+	bool send(string smtpServerUrl, string username, OAuth2 auth, SMTP smtp = SMTP())
+	{
+		if (username.length == 0 || auth.accessToken.length == 0)
+			throw new PostinoException("OAuth2 needs a username and an access token");
 
-		smtp.perform();
-		return true;
+		smtp.handle.set(CurlOption.username, username);
+		smtp.handle.set(curlOptionXOAuth2Bearer, auth.accessToken);
+
+		return deliver(smtpServerUrl, true, smtp);
 	}
 
 	/**
@@ -370,7 +498,7 @@ class Email
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: Exception if the email has no sender or no recipients, if a file to attach is missing,
+	 * Throws: PostinoException if the email has no sender or no recipients, if a file to attach is missing,
 	 *         or if the file cannot be written to the specified path
 	 *
 	 * Example:
@@ -391,12 +519,41 @@ class Email
 
    private:
 
+	// CURLOPT_XOAUTH2_BEARER, missing from etc.c.curl
+	enum curlOptionXOAuth2Bearer = cast(CurlOption)10_220;
+
+	bool deliver(string smtpServerUrl, bool hasCredentials, SMTP smtp)
+	{
+		// Build first: it checks sender, recipients and files before anything is sent
+		string message = build();
+
+		smtp.url = smtpServerUrl;
+
+		// Never send credentials in clear: plain smtp:// must upgrade the connection with STARTTLS
+		if (hasCredentials && requiresStartTls(smtpServerUrl))
+			smtp.handle.set(CurlOption.use_ssl, CurlUseSSL.all);
+
+		// Envelope recipients: To, Cc and Bcc. Bcc is not written in the headers.
+		smtp.mailTo = envelopeRecipients().map!(r => formatEmailOnly(r).to!(const(char)[])).array;
+		smtp.mailFrom = formatEmailOnly(from);
+		smtp.message = message;
+
+		smtp.perform();
+		return true;
+	}
+
 	struct Attachment
 	{
 		string name;
 		string path;
 		ubyte[] data;
 		string mimeType;
+	}
+
+	struct Header
+	{
+		string name;
+		string value;
 	}
 
 	struct Recipient
@@ -420,10 +577,10 @@ class Email
 	string build()
 	{
 		if (from.address.length == 0)
-			throw new Exception("Missing sender: call setFrom()");
+			throw new PostinoException("Missing sender: call setFrom()");
 
 		if (to.length + cc.length + bcc.length == 0)
-			throw new Exception("Missing recipients: call addTo(), addCc() or addBcc()");
+			throw new PostinoException("Missing recipients: call addTo(), addCc() or addBcc()");
 
 		// Headers. Bcc recipients are never written here, or everyone would see them.
 		string result = "MIME-Version: 1.0\r\n";
@@ -443,6 +600,9 @@ class Email
 			result ~= "Reply-To: " ~ formatRecipient(replyTo) ~ "\r\n";
 
 		result ~= "Subject: " ~ encodeHeaderText(subject) ~ "\r\n";
+
+		foreach (header; headers)
+			result ~= header.name ~ ": " ~ encodeHeaderText(header.value) ~ "\r\n";
 
 		// Body: text and html are alternatives, embedded files are related to them,
 		// attachments are mixed with all of that.
@@ -545,13 +705,15 @@ class Email
 		}
 	}
 
-	// Check an email address (addr-spec, without display name) and return it.
+	// Check an email address (addr-spec, without display name) and return it, with an
+	// internationalized domain converted to punycode.
 	// CR, LF and every other control character are rejected, not removed: a header can't be injected.
 	static string validateEmailAddress(string email)
 	{
 		import std.string : indexOf, split;
+		import std.uni : normalize, NFC, uniToLower = toLower;
 
-		void fail(string reason) { throw new Exception("Invalid email address `" ~ sanitizeHeader(email) ~ "`: " ~ reason); }
+		void fail(string reason) { throw new PostinoException("Invalid email address `" ~ sanitizeHeader(email) ~ "`: " ~ reason); }
 
 		if (email.length == 0) fail("empty");
 		if (email.length > 254) fail("longer than 254 characters");
@@ -569,26 +731,140 @@ class Email
 
 		if (local.length == 0 || local.length > 64) fail("the part before @ must be 1 to 64 characters");
 		if (local.startsWith(".") || local.endsWith(".") || local.canFind("..")) fail("misplaced dot before @");
+		if (hasNonAscii(local)) fail("non-ASCII characters before @ need SMTPUTF8, which postino does not support");
 
 		if (domain.length == 0) fail("missing domain");
 
-		foreach (label; domain.split(".")) {
+		string[] labels = domain.split(".");
+
+		foreach (ref label; labels) {
 			if (label.length == 0) fail("empty label in domain");
+
+			// Internationalized domain (città.it): written as punycode (xn--citt-3na.it)
+			if (hasNonAscii(label))
+				label = "xn--" ~ punycode(label.normalize!NFC.uniToLower.to!dstring);
+
+			if (label.length > 63) fail("domain label longer than 63 characters");
 			if (label.startsWith("-") || label.endsWith("-")) fail("domain label starts or ends with -");
 		}
 
-		return email;
+		return local ~ "@" ~ labels.join(".");
+	}
+
+	// Punycode encoding of a domain label (RFC 3492), without the xn-- prefix
+	static string punycode(dstring input)
+	{
+		enum uint base = 36, tmin = 1, tmax = 26, skew = 38, damp = 700;
+
+		char digit(uint d) { return cast(char)(d < 26 ? 'a' + d : '0' + d - 26); }
+
+		uint adapt(uint delta, uint numPoints, bool first)
+		{
+			delta = first ? delta / damp : delta / 2;
+			delta += delta / numPoints;
+
+			uint k = 0;
+			while (delta > ((base - tmin) * tmax) / 2) {
+				delta /= base - tmin;
+				k += base;
+			}
+
+			return k + (base - tmin + 1) * delta / (delta + skew);
+		}
+
+		// Basic (ASCII) code points first, then a "-" if there are any
+		string output = "";
+		foreach (c; input)
+			if (c < 0x80)
+				output ~= cast(char)c;
+
+		uint handled = cast(uint)output.length;
+		immutable uint basic = handled;
+
+		if (basic > 0)
+			output ~= '-';
+
+		uint n = 0x80, delta = 0, bias = 72;
+
+		while (handled < input.length)
+		{
+			uint m = uint.max;
+			foreach (c; input)
+				if (c >= n && c < m)
+					m = c;
+
+			delta += (m - n) * (handled + 1);
+			n = m;
+
+			foreach (c; input)
+			{
+				if (c < n) delta++;
+				if (c != n) continue;
+
+				uint q = delta;
+				for (uint k = base; ; k += base)
+				{
+					immutable uint t = k <= bias ? tmin : (k >= bias + tmax ? tmax : k - bias);
+					if (q < t) break;
+					output ~= digit(t + (q - t) % (base - t));
+					q = (q - t) / (base - t);
+				}
+
+				output ~= digit(q);
+				bias = adapt(delta, handled + 1, handled == basic);
+				delta = 0;
+				handled++;
+			}
+
+			delta++;
+			n++;
+		}
+
+		return output;
+	}
+
+	// Header name: printable ASCII without ":" (RFC 5322), not one of those written by postino
+	static string validateHeaderName(string name)
+	{
+		static immutable reserved = ["mime-version", "date", "message-id", "from", "to", "cc", "bcc", "reply-to", "subject"];
+
+		if (name.length == 0)
+			throw new PostinoException("Invalid header name: empty");
+
+		foreach (char c; name)
+			if (c < 33 || c > 126 || c == ':')
+				throw new PostinoException("Invalid header name `" ~ sanitizeHeader(name) ~ "`: use letters, digits and -");
+
+		immutable lower = name.toLower;
+
+		if (reserved.canFind(lower) || lower.startsWith("content-"))
+			throw new PostinoException("Header `" ~ name ~ "` is written by postino: use its own setter");
+
+		return name;
+	}
+
+	// Header value: no CR, LF or NUL, and not longer than a header line can be
+	static string validateHeaderValue(string name, string value)
+	{
+		foreach (char c; value)
+			if (c == '\r' || c == '\n' || c == '\0')
+				throw new PostinoException("Invalid value for header `" ~ name ~ "`: it contains CR, LF or NUL");
+
+		if (!hasNonAscii(value) && name.length + 2 + value.length > 998)
+			throw new PostinoException("Header `" ~ name ~ "` is longer than 998 characters");
+
+		return value;
 	}
 
 	// Content-ID of an embedded file: printable ASCII, no spaces and no <>
 	static string validateContentId(string cid)
 	{
 		if (cid.length == 0)
-			throw new Exception("Invalid Content-ID: empty");
+			throw new PostinoException("Invalid Content-ID: empty");
 
 		foreach (char c; cid)
 			if (c < 33 || c > 126 || "<>()[]\\,;:\"".canFind(c))
-				throw new Exception("Invalid Content-ID `" ~ sanitizeHeader(cid) ~ "`: use letters, digits and .-_@");
+				throw new PostinoException("Invalid Content-ID `" ~ sanitizeHeader(cid) ~ "`: use letters, digits and .-_@");
 
 		return cid;
 	}
@@ -612,7 +888,7 @@ class Email
 		auto parts = mimeType.split("/");
 
 		if (parts.length != 2 || !isToken(parts[0]) || !isToken(parts[1]))
-			throw new Exception("Invalid MIME type `" ~ sanitizeHeader(mimeType) ~ "`: expected type/subtype, e.g. image/png");
+			throw new PostinoException("Invalid MIME type `" ~ sanitizeHeader(mimeType) ~ "`: expected type/subtype, e.g. image/png");
 
 		return mimeType;
 	}
@@ -625,7 +901,7 @@ class Email
 
 		// Read from file
 		if (!exists(attachment.path))
-			throw new Exception("File not found: " ~ attachment.path);
+			throw new PostinoException("File not found: " ~ attachment.path);
 
 		return cast(ubyte[])read(attachment.path);
 	}
@@ -928,6 +1204,7 @@ class Email
 	Recipient[] cc;
 	Recipient[] bcc;
 	Recipient replyTo;
+	Header[] headers;
 
 	string plainTextBody;
 	string htmlBody;
@@ -938,7 +1215,8 @@ class Email
 version(unittest)
 {
 	import std.file : tempDir, remove, readText, write;
-	import std.array : split;
+	import std.array : split, replicate;
+	import std.algorithm : filter, countUntil;
 	import std.path : buildPath;
 	import std.string : indexOf, splitLines;
 	import std.exception : assertThrown, assertNotThrown;
@@ -1250,4 +1528,316 @@ unittest
 	// Every line ends with CRLF and is short
 	foreach (line; message.split("\r\n"))
 		assert(!line.canFind("\n") && !line.canFind("\r") && line.length <= 998);
+}
+
+version(unittest)
+{
+	// A minimal SMTP server on 127.0.0.1, in a thread: it records the commands it receives
+	// and the number of connections. Enough to test what postino and libcurl send.
+	class FakeSmtpServer
+	{
+		import std.socket : TcpSocket, Socket, InternetAddress, SocketShutdown;
+		import core.thread : Thread;
+		import core.sync.mutex : Mutex;
+
+		ushort port;
+		shared int connections;
+
+		this()
+		{
+			listener = new TcpSocket();
+			listener.bind(new InternetAddress("127.0.0.1", 0));
+			listener.listen(5);
+			port = (cast(InternetAddress)listener.localAddress).port;
+			mutex = new Mutex();
+			thread = new Thread(&run);
+			thread.isDaemon = true;
+			thread.start();
+		}
+
+		string[] commands()
+		{
+			mutex.lock(); scope(exit) mutex.unlock();
+			return log.dup;
+		}
+
+		void stop()
+		{
+			listener.shutdown(SocketShutdown.BOTH);
+			listener.close();
+		}
+
+	private:
+
+		TcpSocket listener;
+		Thread thread;
+		Mutex mutex;
+		string[] log;
+
+		void record(string line)
+		{
+			mutex.lock(); scope(exit) mutex.unlock();
+			log ~= line;
+		}
+
+		void run()
+		{
+			import core.atomic : atomicOp;
+
+			while (true)
+			{
+				Socket client;
+				try client = listener.accept();
+				catch (Exception) return;
+
+				connections.atomicOp!"+="(1);
+				try serve(client);
+				catch (Exception) {}
+				client.close();
+			}
+		}
+
+		void serve(Socket client)
+		{
+			import std.string : indexOf, toUpper;
+
+			string buffer;
+
+			string readLine()
+			{
+				while (buffer.indexOf("\r\n") < 0)
+				{
+					char[1024] chunk;
+					auto n = client.receive(chunk[]);
+					if (n <= 0) return null;
+					buffer ~= chunk[0 .. n].idup;
+				}
+
+				auto end = buffer.indexOf("\r\n");
+				string line = buffer[0 .. end];
+				buffer = buffer[end + 2 .. $];
+				return line;
+			}
+
+			void reply(string text) { client.send(text ~ "\r\n"); }
+
+			reply("220 fake");
+
+			while (true)
+			{
+				string line = readLine();
+				if (line is null) return;
+
+				record(line);
+				string command = line.toUpper;
+
+				if (command.startsWith("EHLO")) reply("250-fake\r\n250 AUTH PLAIN LOGIN XOAUTH2");
+				else if (command == "AUTH XOAUTH2" || command == "AUTH PLAIN") { reply("334 "); record(readLine()); reply("235 ok"); }
+				else if (command.startsWith("AUTH")) reply("235 ok");
+				else if (command == "DATA") {
+					reply("354 go");
+					while (true) { string data = readLine(); if (data is null || data == ".") break; }
+					reply("250 queued");
+				}
+				else if (command == "QUIT") { reply("221 bye"); return; }
+				else reply("250 ok");
+			}
+		}
+	}
+}
+
+// send() puts To, Cc and Bcc in the envelope, and the sender in MAIL FROM
+unittest
+{
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	new Email()
+		.setFrom("sender@example.com")
+		.addTo("to@example.com")
+		.addCc("cc@example.com")
+		.addBcc("bcc@example.com")
+		.setPlainTextBody("Hi")
+		.send("smtp://localhost:" ~ server.port.to!string);
+
+	auto commands = server.commands();
+	assert(commands.canFind("MAIL FROM:<sender@example.com>"));
+	assert(commands.canFind("RCPT TO:<to@example.com>"));
+	assert(commands.canFind("RCPT TO:<cc@example.com>"));
+	assert(commands.canFind("RCPT TO:<bcc@example.com>"));
+}
+
+// send() with OAuth2 authenticates with XOAUTH2: "user=...^Aauth=Bearer ...^A^A" in base64
+unittest
+{
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	auto email = new Email().setFrom("user@example.com").addTo("to@example.com").setPlainTextBody("Hi");
+
+	assertThrown!PostinoException(email.send("smtp://localhost:" ~ server.port.to!string, "", OAuth2("token")));
+	assertThrown!PostinoException(email.send("smtp://localhost:" ~ server.port.to!string, "user@example.com", OAuth2("")));
+
+	email.send("smtp://localhost:" ~ server.port.to!string, "user@example.com", OAuth2("ya29.token"));
+
+	// A plain string is still a password: PLAIN, not XOAUTH2
+	email.send("smtp://localhost:" ~ server.port.to!string, "user@example.com", "password");
+	assert(server.commands().filter!(c => c == "AUTH XOAUTH2").count == 1);
+	assert(server.commands().canFind("AUTH PLAIN"));
+
+	auto commands = server.commands();
+	auto auth = commands.countUntil("AUTH XOAUTH2");
+	assert(auth >= 0, commands.join(" | "));
+	assert(cast(string)Base64.decode(commands[auth + 1]) == "user=user@example.com\x01auth=Bearer ya29.token\x01\x01");
+	assert(commands.canFind("RCPT TO:<to@example.com>"));
+}
+
+// The same SMTP object reuses the connection: one connection for many emails
+unittest
+{
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	auto newsletter = new Email()
+		.setFrom("news@example.com")
+		.setSubject("News")
+		.setPlainTextBody("Hi");
+
+	auto smtp = SMTP();
+
+	foreach (address; ["one@example.com", "two@example.com", "three@example.com"])
+		newsletter.clone().addTo(address).send("smtp://localhost:" ~ server.port.to!string, "user", "password", smtp);
+
+	import core.atomic : atomicLoad;
+	assert(atomicLoad(server.connections) == 1, atomicLoad(server.connections).to!string);
+
+	// Each email went to its own recipient only
+	auto rcpt = server.commands().filter!(c => c.startsWith("RCPT TO:")).array;
+	assert(rcpt == ["RCPT TO:<one@example.com>", "RCPT TO:<two@example.com>", "RCPT TO:<three@example.com>"], rcpt.join(" | "));
+	assert(newsletter.to.length == 0);
+}
+
+// A new SMTP object for each email opens a new connection
+unittest
+{
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	foreach (i; 0 .. 2)
+		new Email().setFrom("a@example.com").addTo("b@example.com").setPlainTextBody("Hi")
+			.send("smtp://localhost:" ~ server.port.to!string);
+
+	import core.atomic : atomicLoad;
+	assert(atomicLoad(server.connections) == 2);
+}
+
+// Custom headers
+unittest
+{
+	auto email = new Email()
+		.setFrom("sender@example.com")
+		.addTo("to@example.com")
+		.setSubject("Hi")
+		.addHeader("List-Unsubscribe", "<https://example.com/u?id=1>, <mailto:u@example.com>")
+		.addHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click")
+		.addHeader("X-Note", "perché sì")
+		.addHeader("References", "<a@example.com>")
+		.addHeader("References", "<b@example.com>");
+
+	string headers = headersOf(email.build());
+	assert(headers.canFind("\r\nSubject: Hi\r\nList-Unsubscribe: <https://example.com/u?id=1>, <mailto:u@example.com>\r\n"
+		~ "List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n"));
+	assert(headers.canFind("\r\nX-Note: =?UTF-8?B?" ~ Base64.encode(cast(ubyte[])"perché sì") ~ "?=\r\n"));
+	assert(headers.canFind("\r\nReferences: <a@example.com>\r\nReferences: <b@example.com>\r\n"));
+
+	// Reserved, invalid names and values
+	foreach (name; ["From", "to", "BCC", "Subject", "Date", "Message-ID", "MIME-Version", "Reply-To", "Content-Type", "content-transfer-encoding"])
+		assertThrown!PostinoException(email.addHeader(name, "x"), name);
+
+	foreach (name; ["", "X Note", "X:Note", "X-Nötè", "X\r\nBcc"])
+		assertThrown!PostinoException(email.addHeader(name, "x"), name);
+
+	assertThrown!PostinoException(email.addHeader("X-Evil", "a\r\nBcc: victim@example.com"));
+	assertThrown!PostinoException(email.addHeader("X-Evil", "a\nb"));
+	assertThrown!PostinoException(email.addHeader("X-Long", "a".replicate(1000)));
+
+	string message = email.clearHeaders().build();
+	assert(!message.canFind("List-Unsubscribe") && !message.canFind("X-Note"));
+}
+
+// clone() copies everything, the copy and the original are independent
+unittest
+{
+	auto original = new Email()
+		.setFrom("sender@example.com", "Sender")
+		.addTo("to@example.com")
+		.addCc("cc@example.com")
+		.addBcc("bcc@example.com")
+		.setReplyTo("reply@example.com")
+		.setSubject("Subject")
+		.setPlainTextBody("Text")
+		.setHtmlBody("<p>Html</p>")
+		.addHeader("X-Test", "1")
+		.addEmbeddedFile(cast(ubyte[])"png", "logo", "image/png")
+		.addAttachment(cast(ubyte[])"pdf", "application/pdf", "doc.pdf");
+
+	auto copy = original.clone();
+	assert(copy !is original);
+
+	string a = original.build(), b = copy.build();
+	foreach (piece; ["From: Sender <sender@example.com>", "To: to@example.com", "Cc: cc@example.com", "Reply-To: reply@example.com",
+		"Subject: Subject", "X-Test: 1", "Content-ID: <logo>", "filename=\"doc.pdf\""])
+		assert(a.canFind(piece) && b.canFind(piece), piece);
+	assert(copy.envelopeRecipients() == original.envelopeRecipients());
+
+	copy.clearTo().clearCc().clearBcc().addTo("other@example.com").clearHeaders().clearEmbeddedFiles().clearAttachments();
+
+	assert(original.envelopeRecipients().length == 3);
+	assert(original.headers.length == 1 && original.embeddedFiles.length == 1 && original.attachments.length == 1);
+	assert(copy.envelopeRecipients().map!(r => r.address).array == ["other@example.com"]);
+
+	string c = copy.build();
+	assert(!c.canFind("X-Test") && !c.canFind("Content-ID") && !c.canFind("doc.pdf")
+		&& !c.canFind("multipart/mixed") && !c.canFind("multipart/related") && c.canFind("multipart/alternative"));
+}
+
+// Internationalized domains become punycode, non-ASCII before @ is refused
+unittest
+{
+	assert(Email.punycode("bücher"d) == "bcher-kva");
+	assert(Email.punycode("città"d) == "citt-3na");
+	assert(Email.punycode("日本"d) == "wgv71a");
+	assert(Email.punycode("münchen"d) == "mnchen-3ya");
+	assert(Email.punycode("straße"d) == "strae-oqa");
+
+	assert(Email.validateEmailAddress("info@città.it") == "info@xn--citt-3na.it");
+	assert(Email.validateEmailAddress("info@CITTÀ.it") == "info@xn--citt-3na.it");
+	assert(Email.validateEmailAddress("a@mail.bücher.de") == "a@mail.xn--bcher-kva.de");
+	assert(Email.validateEmailAddress("a@日本.jp") == "a@xn--wgv71a.jp");
+	assert(Email.validateEmailAddress("a@example.com") == "a@example.com");
+
+	// NFD (e + combining grave) and NFC give the same domain
+	assert(Email.validateEmailAddress("a@città.it") == "a@xn--citt-3na.it");
+
+	assertThrown!PostinoException(new Email().addTo("andrè@example.com"));
+
+	string message = new Email()
+		.setFrom("info@città.it", "Città")
+		.addTo("ufficio@bücher.de")
+		.setPlainTextBody("Hi")
+		.build();
+
+	assert(headersOf(message).canFind("\r\nTo: ufficio@xn--bcher-kva.de\r\n"));
+	assert(headersOf(message).canFind(" <info@xn--citt-3na.it>\r\n"));
+	assert(headersOf(message).canFind("@xn--citt-3na.it>\r\n"));    // Message-ID
+}
+
+// Every error of postino is a PostinoException
+unittest
+{
+	assertThrown!PostinoException(new Email().addTo("not an address"));
+	assertThrown!PostinoException(new Email().addEmbeddedFile(cast(ubyte[])"x", "<id>", "image/png"));
+	assertThrown!PostinoException(new Email().addAttachment(cast(ubyte[])"x", "png"));
+	assertThrown!PostinoException(new Email().addTo("a@example.com").build());
+	assertThrown!PostinoException(new Email().setFrom("a@example.com").addTo("b@example.com").addAttachment("/nonexistent/file").build());
 }
