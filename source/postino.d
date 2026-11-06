@@ -1450,6 +1450,21 @@ version(unittest)
 		return message[0 .. message.indexOf("\r\n\r\n") + 2];
 	}
 
+	// An address of this machine that is not loopback: postino treats it as a remote server.
+	// It is the address used to reach the internet; no packet is sent to find it.
+	string remoteTestHost()
+	{
+		import std.socket : UdpSocket, InternetAddress;
+
+		try {
+			auto socket = new UdpSocket();
+			scope(exit) socket.close();
+			socket.connect(new InternetAddress("192.0.2.1", 9));
+			return socket.localAddress.toAddrString;
+		}
+		catch (Exception) return "0.0.0.0"; // no network: on Linux and macOS 0.0.0.0 reaches this machine
+	}
+
 	string tempFile(string name)
 	{
 		import std.uuid : randomUUID;
@@ -1766,10 +1781,11 @@ version(unittest)
 		ushort port;
 		shared int connections;
 
-		this()
+		// On 127.0.0.1 by default; on 0.0.0.0 (every interface) to be reached as a remote host too
+		this(string bindAddress = "127.0.0.1")
 		{
 			listener = new TcpSocket();
-			listener.bind(new InternetAddress("127.0.0.1", 0));
+			listener.bind(new InternetAddress(bindAddress, 0));
 			listener.listen(5);
 			port = (cast(InternetAddress)listener.localAddress).port;
 			mutex = new Mutex();
@@ -2155,21 +2171,23 @@ unittest
 // Audit 2: the host checked is the host libcurl connects to; only real loopback addresses are local
 unittest
 {
-	auto server = new FakeSmtpServer();
+	auto server = new FakeSmtpServer("0.0.0.0");
 	scope(exit) server.stop();
 
 	auto email = new Email().setFrom("a@example.com").addTo("b@example.com").setPlainTextBody("Hi");
-	immutable port = server.port.to!string;
+	immutable remote = "smtp://" ~ remoteTestHost() ~ ":" ~ server.port.to!string;
 
 	// "?@localhost" and "#@localhost" used to make the host look local
-	foreach (url; ["smtp://0.0.0.0:" ~ port ~ "?@localhost", "smtp://0.0.0.0:" ~ port ~ "#@localhost", "smtp://0.0.0.0:" ~ port ~ "/?x"])
+	foreach (url; [remote ~ "?@localhost", remote ~ "#@localhost", remote ~ "/?x"])
 		assertThrown!PostinoException(email.send(url, "user", "secret"), url);
 
 	assert(atomicLoad(server.connections) == 0);
 
-	// 0.0.0.0 is not local for postino (it connects to this machine on Linux): STARTTLS is required,
-	// the fake server does not offer it, so nothing is sent
-	assertThrown(email.send("smtp://0.0.0.0:" ~ port, "user", "secret"));
+	// A remote server: STARTTLS is required, the fake server does not offer it.
+	// The connection is made (EHLO), but the credentials are never sent
+	assertThrown(email.send(remote, "user", "secret"));
+	assert(atomicLoad(server.connections) == 1);
+	assert(server.commands().any!(c => c.startsWith("EHLO")));
 	assert(!server.commands().any!(c => c.startsWith("AUTH")));
 
 	foreach (host; ["localhost", "127.0.0.1", "127.1.2.3", "::1"])
@@ -2301,7 +2319,7 @@ unittest
 // Audit 9: use_ssl is set at every send, a reused SMTP object does not keep it
 unittest
 {
-	auto server = new FakeSmtpServer();
+	auto server = new FakeSmtpServer("0.0.0.0");
 	scope(exit) server.stop();
 
 	immutable port = server.port.to!string;
@@ -2309,7 +2327,8 @@ unittest
 	auto smtp = SMTP();
 
 	// A remote server with credentials: STARTTLS required, refused by the fake server
-	assertThrown(mail().send("smtp://0.0.0.0:" ~ port, "user", "secret", smtp));
+	assertThrown(mail().send("smtp://" ~ remoteTestHost() ~ ":" ~ port, "user", "secret", smtp));
+	assert(server.commands().any!(c => c.startsWith("EHLO")) && !server.commands().any!(c => c.startsWith("AUTH")));
 
 	// Then a local one without credentials, with the same SMTP object: plain SMTP works
 	mail().send("smtp://localhost:" ~ port, "", "", smtp);
