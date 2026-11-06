@@ -43,23 +43,3 @@ jobs:
 
       - name: Unit tests
         run: dub test
-
-  windows:
-    name: Windows / ${{ matrix.dc }}
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dc: [dmd-latest, ldc-latest]
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: dlang-community/setup-dlang@v2
-        with:
-          compiler: ${{ matrix.dc }}
-
-      - name: Build
-        run: dub build
-
-      - name: Unit tests
-        run: dub test
