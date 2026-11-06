@@ -147,6 +147,48 @@ void main()
 		assert(onlyMessage(apiPlain)["Subject"].str == "Plain relay");
 	});
 
+	test!"Custom headers arrive, reserved ones can't be added"({
+		simpleEmail("Headers")
+			.addHeader("List-Unsubscribe", "<https://example.com/unsubscribe?id=42>, <mailto:unsubscribe@example.com>")
+			.addHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click")
+			.addHeader("X-Note", "perché sì")
+			.send("smtp://localhost:" ~ smtpPlain);
+
+		auto msg = onlyMessage(apiPlain);
+		auto headers = parseJSON(fetch(apiPlain ~ "/api/v1/message/" ~ msg["ID"].str ~ "/headers"));
+		assert(headers["List-Unsubscribe"].array[0].str == "<https://example.com/unsubscribe?id=42>, <mailto:unsubscribe@example.com>");
+		assert(headers["List-Unsubscribe-Post"].array[0].str == "List-Unsubscribe=One-Click");
+		assert(rawMessage(apiPlain, msg).canFind("X-Note: =?UTF-8?B?"));
+
+		assertThrown!PostinoException(simpleEmail("x").addHeader("Bcc", "victim@example.com"));
+	});
+
+	test!"Internationalized domains are sent as punycode"({
+		new Email()
+			.setFrom("info@città.it", "Città")
+			.addTo("ufficio@bücher.de")
+			.setPlainTextBody("Hi")
+			.send("smtp://localhost:" ~ smtpPlain);
+
+		auto msg = onlyMessage(apiPlain);
+		assert(msg["From"]["Address"].str == "info@xn--citt-3na.it");
+		assert(addresses(msg["To"]) == ["ufficio@xn--bcher-kva.de"]);
+	});
+
+	test!"clone() and one connection for many emails"({
+		auto newsletter = new Email().setFrom("news@example.com").setSubject("News").setPlainTextBody("Hi");
+		auto smtp = SMTP();
+
+		foreach (address; ["one@example.com", "two@example.com", "three@example.com"])
+			newsletter.clone().addTo(address).send("smtp://localhost:" ~ smtpPlain, "", "", smtp);
+
+		auto list = messages(apiPlain);
+		assert(list.length == 3);
+
+		foreach (m; list)
+			assert(m["To"].array.length == 1 && (m["Bcc"].isNull || m["Bcc"].array.length == 0));
+	});
+
 	writeln("All Mailpit tests passed");
 }
 

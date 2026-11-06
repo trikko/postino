@@ -13,3 +13,4 @@ postino-test-*
 *.o
 *.obj
 *.lst
+/tests/mailpit
