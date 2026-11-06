@@ -15,16 +15,14 @@
 module postino;
 
 import std.algorithm : map, sort;
-import std.array : array, join;
+import std.array : array, join, split;
 import std.algorithm.searching : canFind;
-import std.string : replace, toLower;
+import std.string : replace, toLower, strip;
 import std.conv : to;
 import std.file : exists, read;
 import std.path : baseName, extension;
 import std.base64 : Base64;
 import std.datetime : Clock, SysTime;
-import std.random : uniform;
-import std.digest.sha : sha384Of;
 import std.range : chunks;
 import std.net.curl : SMTP;
 import std.utf : toUTF8, stride;
@@ -81,7 +79,7 @@ class Email
 	 */
 	auto setFrom(string address, string name = string.init)
 	{
-		this.from = Recipient(validateEmailAddress(address), name);
+		this.from = Recipient(validateEmailAddress(address), validateText("name", name));
 		return this;
 	}
 
@@ -105,7 +103,7 @@ class Email
 	 */
 	auto addTo(string address, string name = string.init)
 	{
-		this.to ~= Recipient(validateEmailAddress(address), name);
+		this.to ~= Recipient(validateEmailAddress(address), validateText("name", name));
 		return this;
 	}
 
@@ -126,7 +124,7 @@ class Email
 	 */
 	auto setSubject(string subject)
 	{
-		this.subject = subject;
+		this.subject = validateText("subject", subject);
 		return this;
 	}
 
@@ -151,7 +149,7 @@ class Email
 	 */
 	auto addCc(string address, string name = string.init)
 	{
-		this.cc ~= Recipient(validateEmailAddress(address), name);
+		this.cc ~= Recipient(validateEmailAddress(address), validateText("name", name));
 		return this;
 	}
 
@@ -177,7 +175,7 @@ class Email
 	 */
 	auto addBcc(string address, string name = string.init)
 	{
-		this.bcc ~= Recipient(validateEmailAddress(address), name);
+		this.bcc ~= Recipient(validateEmailAddress(address), validateText("name", name));
 		return this;
 	}
 
@@ -201,7 +199,7 @@ class Email
 	 */
 	auto setReplyTo(string address, string name = string.init)
 	{
-		this.replyTo = Recipient(validateEmailAddress(address), name);
+		this.replyTo = Recipient(validateEmailAddress(address), validateText("name", name));
 		return this;
 	}
 
@@ -222,7 +220,7 @@ class Email
 	 */
 	auto setPlainTextBody(string body)
 	{
-		this.plainTextBody = body;
+		this.plainTextBody = validateText("plain text body", body);
 		return this;
 	}
 
@@ -243,14 +241,16 @@ class Email
 	 */
 	auto setHtmlBody(string body)
 	{
-		this.htmlBody = body;
+		this.htmlBody = validateText("html body", body);
 		return this;
 	}
 
 	/**
 	 * Adds a custom header, e.g. List-Unsubscribe, In-Reply-To, References or X-Mailer.
 	 * The same header can be added more than once; headers are written in the order they are added.
-	 * Non-ASCII values are encoded according to RFC 2047.
+	 * Non-ASCII values are encoded according to RFC 2047, which is right for unstructured headers
+	 * (X-..., Comments, Keywords): in structured ones (List-Unsubscribe, In-Reply-To, References)
+	 * use ASCII only, e.g. percent-encoded URLs.
 	 *
 	 * The headers that postino writes itself can't be added: MIME-Version, Date, Message-ID,
 	 * From, To, Cc, Bcc, Reply-To, Subject and the Content-* headers.
@@ -276,76 +276,130 @@ class Email
 	}
 
 	/**
-	 * Adds an embedded file (inline attachment) to the email.
-	 * Embedded files can be referenced in HTML content using their Content-ID.
+	 * Embeds a file in the email (inline attachment), to show it in the HTML body
+	 * through its Content-ID: `<img src="cid:logo">`.
+	 * The file is read when the email is sent or saved.
 	 *
 	 * Params:
 	 *     path = Path to the file to embed
-	 *     cid = Content-ID for referencing in HTML (e.g., "image1" for src="cid:image1")
-	 *     mimeType = Optional MIME type override (auto-detected if not provided)
+	 *     cid = Content-ID for referencing in HTML (e.g., "logo" for src="cid:logo")
+	 *     mimeType = Optional MIME type (detected from the extension if not provided)
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: PostinoException if cid or mimeType are not valid. A missing file is reported by send() and save()
+	 * Throws: PostinoException if path is empty, or cid or mimeType are not valid.
+	 *         A missing or unreadable file is reported by send() and save()
 	 *
 	 * Example:
 	 * ---
-	 * email.addEmbeddedFile("/path/to/logo.png", "logo")
+	 * email.embedFile("/path/to/logo.png", "logo")
 	 *      .setHtmlBody("<img src='cid:logo'>");
 	 * ---
 	 */
-	auto addEmbeddedFile(string path, string cid, string mimeType = string.init)
+	auto embedFile(string path, string cid, string mimeType = string.init)
 	{
+		if (path.length == 0)
+			throw new PostinoException("embedFile: empty path");
+
 		if (mimeType.length == 0)
 			mimeType = getMimeType(path);
 
-		this.embeddedFiles[validateContentId(cid)] = Attachment(baseName(path), path, [], validateMimeType(mimeType));
-		return this;
-	}
-
-	/// DITTO
-	auto addEmbeddedFile(ubyte[] data, string cid, string mimeType)
-	{
-		if (mimeType.length == 0)
-			mimeType = "application/octet-stream";
-
-		this.embeddedFiles[validateContentId(cid)] = Attachment(string.init, string.init, data, validateMimeType(mimeType));
+		this.embeddedFiles[validateContentId(cid)] = Attachment(validateText("file name", baseName(path)), path, null, validateMimeType(mimeType), true);
 		return this;
 	}
 
 	/**
-	 * Adds a file attachment to the email.
-	 * Attachments appear as downloadable files in the email client.
+	 * Embeds data from memory in the email (inline attachment), to show it in the HTML body
+	 * through its Content-ID. The data is copied: changing the array afterwards does not change the email.
+	 *
+	 * Params:
+	 *     data = The content, e.g. the bytes of a PNG image
+	 *     cid = Content-ID for referencing in HTML (e.g., "chart" for src="cid:chart")
+	 *     mimeType = MIME type of the data (e.g., "image/png")
+	 *
+	 * Returns: Reference to this Email object for method chaining
+	 *
+	 * Throws: PostinoException if cid or mimeType are not valid
+	 *
+	 * Example:
+	 * ---
+	 * email.addEmbeddedFile(png, "chart", "image/png")
+	 *      .setHtmlBody("<img src='cid:chart'>");
+	 * ---
+	 */
+	auto addEmbeddedFile(const(ubyte)[] data, string cid, string mimeType)
+	{
+		if (mimeType.length == 0)
+			mimeType = "application/octet-stream";
+
+		this.embeddedFiles[validateContentId(cid)] = Attachment(string.init, string.init, data.idup, validateMimeType(mimeType), false);
+		return this;
+	}
+
+	/// Old name of embedFile(). A string given here is always read as a file path, never used as data.
+	deprecated("use embedFile(path, cid): a string passed to addEmbeddedFile is read as a file path")
+	auto addEmbeddedFile(string path, string cid, string mimeType = string.init)
+	{
+		return embedFile(path, cid, mimeType);
+	}
+
+	/**
+	 * Attaches a file to the email. Attachments appear as downloadable files in the email client.
+	 * The file is read when the email is sent or saved.
 	 *
 	 * Params:
 	 *     path = Path to the file to attach
-	 *     mimeType = Optional MIME type override (auto-detected if not provided)
+	 *     mimeType = Optional MIME type (detected from the extension if not provided)
 	 *     name = Optional file name shown to the recipient (the base name of path if not provided)
 	 *
 	 * Returns: Reference to this Email object for method chaining
 	 *
-	 * Throws: PostinoException if mimeType is not valid. A missing file is reported by send() and save()
+	 * Throws: PostinoException if path is empty or mimeType is not valid.
+	 *         A missing or unreadable file is reported by send() and save()
 	 *
 	 * Example:
 	 * ---
-	 * email.addAttachment("/path/to/document.pdf")
-	 *      .addAttachment("/path/to/report.xlsx");
+	 * email.attachFile("/path/to/document.pdf")
+	 *      .attachFile("/tmp/export-1234.csv", "text/csv", "orders.csv");
 	 * ---
 	 */
-	auto addAttachment(string path, string mimeType = string.init, string name = string.init)
+	auto attachFile(string path, string mimeType = string.init, string name = string.init)
 	{
+		if (path.length == 0)
+			throw new PostinoException("attachFile: empty path");
+
 		if (name.length == 0)
 			name = baseName(path);
 
 		if (mimeType.length == 0)
 			mimeType = getMimeType(path);
 
-		this.attachments ~= Attachment(name, path, [], validateMimeType(mimeType));
+		this.attachments ~= Attachment(validateText("file name", name), path, null, validateMimeType(mimeType), true);
 		return this;
 	}
 
-   /// DITTO
-	auto addAttachment(ubyte[] data, string mimeType, string name = string.init)
+	/**
+	 * Attaches data from memory to the email. The data is copied: changing the array
+	 * afterwards does not change the email. For text, pass `text.representation`
+	 * (from std.string).
+	 *
+	 * Params:
+	 *     data = The content of the file
+	 *     mimeType = MIME type of the data (detected from the extension of name if empty)
+	 *     name = File name shown to the recipient (a random one if not provided)
+	 *
+	 * Returns: Reference to this Email object for method chaining
+	 *
+	 * Throws: PostinoException if mimeType or name are not valid
+	 *
+	 * Example:
+	 * ---
+	 * import std.string : representation;
+	 * email.addAttachment(pdfBytes, "application/pdf", "invoice.pdf")
+	 *      .addAttachment(csv.representation, "text/csv", "orders.csv");
+	 * ---
+	 */
+	auto addAttachment(const(ubyte)[] data, string mimeType, string name = string.init)
 	{
 		import std.uuid : randomUUID;
 
@@ -355,8 +409,15 @@ class Email
 		if (mimeType.length == 0)
 			mimeType = getMimeType(name);
 
-		this.attachments ~= Attachment(name, string.init, data, validateMimeType(mimeType));
+		this.attachments ~= Attachment(validateText("file name", name), string.init, data.idup, validateMimeType(mimeType), false);
 		return this;
+	}
+
+	/// Old name of attachFile(). A string given here is always read as a file path, never used as data.
+	deprecated("use attachFile(path): a string passed to addAttachment is read as a file path")
+	auto addAttachment(string path, string mimeType = string.init, string name = string.init)
+	{
+		return attachFile(path, mimeType, name);
 	}
 
 	/// Removes every recipient added with addTo().
@@ -540,14 +601,16 @@ class Email
 
 	bool deliver(string smtpServerUrl, bool hasCredentials, SMTP smtp)
 	{
-		// Build first: it checks sender, recipients and files before anything is sent
+		// Check the URL and build first: nothing is sent if something is wrong
+		immutable startTls = requiresStartTls(smtpServerUrl);
 		string message = build();
 
-		smtp.url = smtpServerUrl;
+		smtp.url = smtpServerUrl; // sets use_ssl for smtps://
 
-		// Never send credentials in clear: plain smtp:// must upgrade the connection with STARTTLS
-		if (hasCredentials && requiresStartTls(smtpServerUrl))
-			smtp.handle.set(CurlOption.use_ssl, CurlUseSSL.all);
+		// Never send credentials in clear: plain smtp:// must upgrade the connection with STARTTLS.
+		// Set at every send: a reused SMTP object keeps the value of the previous one.
+		if (smtpServerUrl.toLower.startsWith("smtp://"))
+			smtp.handle.set(CurlOption.use_ssl, hasCredentials && startTls ? CurlUseSSL.all : CurlUseSSL.none);
 
 		// Envelope recipients: To, Cc and Bcc. Bcc is not written in the headers.
 		smtp.mailTo = envelopeRecipients().map!(r => formatEmailOnly(r).to!(const(char)[])).array;
@@ -562,8 +625,9 @@ class Email
 	{
 		string name;
 		string path;
-		ubyte[] data;
+		immutable(ubyte)[] data;   // a copy: the caller can't change it afterwards
 		string mimeType;
+		bool fromFile;
 	}
 
 	struct Header
@@ -578,16 +642,19 @@ class Email
 		string name;
 	}
 
-	shared static this() { startTime = Clock.currTime; }
-
-	string randomBoundary(string prefix)
+	// A random boundary that does not appear in the parts it separates, so no content can close a part
+	static string randomBoundary(string prefix, string[] parts)
 	{
-		import std.digest.sha;
-		string result = "";
+		import std.uuid : randomUUID;
+		import std.algorithm.searching : any;
 
-		foreach(i; 0..64) result ~= "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"[uniform(0, 62)];
+		while (true)
+		{
+			string boundary = "postino_" ~ prefix ~ "_" ~ randomUUID().toString().replace("-", "") ~ randomUUID().toString().replace("-", "");
 
-		return "mail_sender_" ~ prefix ~ "_" ~ result ~ "_" ~ sha384Of((Clock.currTime - startTime).total!"usecs".to!string).toHexString.toLower[32..64];
+			if (!parts.any!(p => p.canFind(boundary)))
+				return boundary;
+		}
 	}
 
 	string build()
@@ -615,7 +682,7 @@ class Email
 		if (replyTo.address.length > 0)
 			result ~= "Reply-To: " ~ formatRecipient(replyTo) ~ "\r\n";
 
-		result ~= "Subject: " ~ encodeHeaderText(subject) ~ "\r\n";
+		result ~= "Subject: " ~ encodeHeaderText(subject, true) ~ "\r\n";
 
 		foreach (header; headers)
 			result ~= header.name ~ ": " ~ encodeHeaderText(header.value) ~ "\r\n";
@@ -662,7 +729,7 @@ class Email
 	// A MIME part (headers, empty line, body) made of other parts
 	string buildMultipart(string subtype, string[] parts)
 	{
-		string boundary = randomBoundary(subtype);
+		string boundary = randomBoundary(subtype, parts);
 		string result = "Content-Type: multipart/" ~ subtype ~ "; boundary=\"" ~ boundary ~ "\"\r\n\r\n";
 
 		foreach (part; parts)
@@ -698,8 +765,9 @@ class Email
 	{
 		string sanitized = sanitizeHeader(name);
 
-		// Check if it contains special characters that require quotes
-		bool needsQuotes = false;
+		// Check if it contains special characters that require quotes. "=?" too: unquoted, a client
+		// would decode it as an encoded-word and show something else (e.g. a fake address)
+		bool needsQuotes = sanitized.canFind("=?");
 		foreach (char c; sanitized) {
 			if (c == '"' || c == '\\' || c == ',' || c == ';' || c == ':' ||
 				c == '<' || c == '>' || c == '@' || c == '[' || c == ']' ||
@@ -727,11 +795,17 @@ class Email
 	static string validateEmailAddress(string email)
 	{
 		import std.string : indexOf, split;
-		import std.uni : normalize, NFC, uniToLower = toLower;
+		import std.uni : normalize, NFKC, isAlpha, isMark, isNumber, uniToLower = toLower;
 
 		void fail(string reason) { throw new PostinoException("Invalid email address `" ~ sanitizeHeader(email) ~ "`: " ~ reason); }
 
 		if (email.length == 0) fail("empty");
+
+		{
+			import std.utf : validate, UTFException;
+			try validate(email);
+			catch (UTFException) fail("not valid UTF-8");
+		}
 		if (email.length > 254) fail("longer than 254 characters");
 
 		foreach (char c; email) {
@@ -751,20 +825,40 @@ class Email
 
 		if (domain.length == 0) fail("missing domain");
 
+		// Internationalized domain (città.it): mapped as browsers and other mailers do (UTS #46):
+		// compatibility forms (fullwidth letters, ideographic dots) become their plain form, case is folded
+		if (hasNonAscii(domain)) {
+			domain = domain.normalize!NFKC.uniToLower.normalize!NFKC.replace("\u3002", ".");
+
+			foreach (char c; domain)
+				if (c < 33 || c == 127 || "()<>[]\\,;:\"@".canFind(c))
+					fail("the domain contains a forbidden character");
+		}
+
 		string[] labels = domain.split(".");
 
 		foreach (ref label; labels) {
 			if (label.length == 0) fail("empty label in domain");
 
-			// Internationalized domain (città.it): written as punycode (xn--citt-3na.it)
-			if (hasNonAscii(label))
-				label = "xn--" ~ punycode(label.normalize!NFC.uniToLower.to!dstring);
+			// Written as punycode (xn--citt-3na.it). Only letters, digits, marks and - are allowed:
+			// invisible characters (soft hyphen, zero width space, ...) would make a domain that looks like another
+			if (hasNonAscii(label)) {
+				foreach (dchar c; label)
+					if (!isAlpha(c) && !isMark(c) && !isNumber(c) && c != '-')
+						fail("the domain contains a character that is not allowed (invisible or a symbol)");
+
+				label = "xn--" ~ punycode(label.to!dstring);
+			}
 
 			if (label.length > 63) fail("domain label longer than 63 characters");
 			if (label.startsWith("-") || label.endsWith("-")) fail("domain label starts or ends with -");
 		}
 
-		return local ~ "@" ~ labels.join(".");
+		string result = local ~ "@" ~ labels.join(".");
+
+		if (result.length > 254) fail("longer than 254 characters once the domain is converted");
+
+		return result;
 	}
 
 	// Punycode encoding of a domain label (RFC 3492), without the xn-- prefix
@@ -863,8 +957,10 @@ class Email
 	static string validateHeaderValue(string name, string value)
 	{
 		foreach (char c; value)
-			if (c == '\r' || c == '\n' || c == '\0')
-				throw new PostinoException("Invalid value for header `" ~ name ~ "`: it contains CR, LF or NUL");
+			if ((c < 32 && c != '\t') || c == 127)
+				throw new PostinoException("Invalid value for header `" ~ name ~ "`: it contains CR, LF or other control characters");
+
+		validateText("value for header `" ~ name ~ "`", value);
 
 		if (!hasNonAscii(value) && name.length + 2 + value.length > 998)
 			throw new PostinoException("Header `" ~ name ~ "` is longer than 998 characters");
@@ -909,20 +1005,26 @@ class Email
 		return mimeType;
 	}
 
-	ubyte[] readAttachmentData(ref Attachment attachment)
+	const(ubyte)[] readAttachmentData(ref Attachment attachment)
 	{
+		import std.file : isDir, FileException;
+
 		// Data given directly
-		if (attachment.path.length == 0)
+		if (!attachment.fromFile)
 			return attachment.data;
 
 		// Read from file
 		if (!exists(attachment.path))
 			throw new PostinoException("File not found: " ~ attachment.path);
 
-		return cast(ubyte[])read(attachment.path);
+		if (isDir(attachment.path))
+			throw new PostinoException("Not a file: " ~ attachment.path);
+
+		try return cast(const(ubyte)[])read(attachment.path);
+		catch (FileException e) throw new PostinoException("Can't read " ~ attachment.path ~ ": " ~ e.msg);
 	}
 
-	string encodeBase64Lines(ubyte[] data)
+	string encodeBase64Lines(const(ubyte)[] data)
 	{
 		string result = "";
 
@@ -964,8 +1066,6 @@ class Email
 	// filename="..." for every client and, if the name is not ASCII, filename*=UTF-8''... (RFC 2231)
 	string filenameParameters(string fileName)
 	{
-		import std.uri : encodeComponent;
-
 		string sanitized = sanitizeHeader(fileName);
 		string ascii = "";
 
@@ -977,7 +1077,23 @@ class Email
 
 		// filename* first: parsers that read only one of the two take the first
 		if (hasNonAscii(sanitized))
-			result = "\r\n filename*=UTF-8''" ~ encodeComponent(sanitized) ~ ";" ~ result;
+			result = "\r\n filename*=UTF-8''" ~ percentEncode(sanitized) ~ ";" ~ result;
+
+		return result;
+	}
+
+	// RFC 2231 value: attr-chars as they are, every other byte as %XX
+	static string percentEncode(string text)
+	{
+		string result = "";
+
+		foreach (char c; text)
+		{
+			if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || "!#$&+-.^_`|~".canFind(c))
+				result ~= c;
+			else
+				result ~= format("%%%02X", cast(ubyte)c);
+		}
 
 		return result;
 	}
@@ -1048,21 +1164,37 @@ class Email
 
 			// Web development
 			".js" : "application/javascript", ".wasm" : "application/wasm",
-			".ts" : "application/typescript",
 			".atom" : "application/atom+xml", ".rss" : "application/rss+xml",
 			".mml" : "text/mathml"
 		];
 
-		if (filePath.extension in mimes)
-			return mimes[filePath.extension];
+		if (auto mime = filePath.extension.toLower in mimes)
+			return *mime;
 
 		return "application/octet-stream";
 	}
 
+	// Remove the control characters (CR, LF, NUL, ESC, ...) but tab: they could break or hide headers
 	static string sanitizeHeader(string input)
 	{
-		// Remove or replace dangerous characters
-		return input.replace("\r", "").replace("\n", "").replace("\0", "");
+		string result = "";
+
+		foreach (char c; input)
+			if ((c >= 32 && c != 127) || c == '\t')
+				result ~= c;
+
+		return result;
+	}
+
+	// Text must be valid UTF-8: it is declared as such in the message
+	static string validateText(string what, string text)
+	{
+		import std.utf : validate, UTFException;
+
+		try validate(text);
+		catch (UTFException) throw new PostinoException("Invalid " ~ what ~ ": not valid UTF-8");
+
+		return text;
 	}
 
 	static bool hasNonAscii(string s)
@@ -1074,15 +1206,41 @@ class Email
 		return false;
 	}
 
-	// Text for a header (the subject): RFC 2047 if it contains non-ASCII characters
-	string encodeHeaderText(string text)
+	// Text for a header: RFC 2047 if it contains non-ASCII characters, or "=?" that a client would
+	// decode as an encoded-word. With fold, long ASCII text is folded at spaces (the subject).
+	string encodeHeaderText(string text, bool fold = false)
 	{
 		string sanitized = sanitizeHeader(text);
 
-		if (hasNonAscii(sanitized))
+		if (hasNonAscii(sanitized) || sanitized.canFind("=?"))
 			return encodeWords(sanitized);
 
+		if (fold && sanitized.length > 70)
+			return foldText(sanitized);
+
 		return sanitized;
+	}
+
+	// Long ASCII text on more lines, breaking at spaces (RFC 5322 2.2.3): unfolding gives the text back.
+	// A word too long for a line (998 characters) is encoded instead.
+	string foldText(string text)
+	{
+		string[] lines = [""];
+
+		foreach (i, word; text.split(" "))
+		{
+			if (word.length > 900)
+				return encodeWords(text);
+
+			if (i == 0)
+				lines[$ - 1] = word;
+			else if (lines[$ - 1].length + 1 + word.length > 70 && lines[$ - 1].strip.length > 0)
+				lines ~= " " ~ word;
+			else
+				lines[$ - 1] ~= " " ~ word;
+		}
+
+		return lines.join("\r\n");
 	}
 
 	// RFC 2047 encoded-words of at most 75 characters each, on folded lines,
@@ -1116,11 +1274,16 @@ class Email
 	// whatever the line length or the characters of the text.
 	static string encodeQuotedPrintable(string text)
 	{
-		import std.string : lineSplitter;
+		// Only CRLF, LF and CR end a line: VT, FF, NEL, U+2028 and U+2029 are content, encoded as they are
+		auto lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n");
+
+		// A final line break does not start another line
+		if (lines.length > 0 && lines[$ - 1].length == 0)
+			lines = lines[0 .. $ - 1];
 
 		string result = "";
 
-		foreach (line; text.lineSplitter)
+		foreach (line; lines)
 		{
 			string encodedLine = "";
 			size_t lineLength = 0;
@@ -1181,34 +1344,76 @@ class Email
 		return "<" ~ randomUUID().toString() ~ "@" ~ domain ~ ">";
 	}
 
-	// With smtp:// and credentials STARTTLS is required, unless the server is on this machine
-	static bool requiresStartTls(string smtpServerUrl)
+	// The host of an SMTP URL, after checking the URL. Credentials, query and fragment are refused:
+	// libcurl would read credentials from the URL and send them without the STARTTLS check,
+	// and "?" or "#" followed by "@" would make the host here differ from the one libcurl connects to.
+	static string smtpHost(string smtpServerUrl)
 	{
 		import std.string : indexOf;
 
 		string url = smtpServerUrl.toLower;
+		string rest;
 
-		if (!url.startsWith("smtp://"))
-			return false; // smtps:// is already TLS
+		if (url.startsWith("smtp://")) rest = url["smtp://".length .. $];
+		else if (url.startsWith("smtps://")) rest = url["smtps://".length .. $];
+		else throw new PostinoException("Invalid SMTP URL: it must start with smtp:// or smtps://");
 
-		string host = url["smtp://".length .. $];
+		foreach (char c; url)
+			if (c < 33 || c == 127)
+				throw new PostinoException("Invalid SMTP URL: it contains spaces or control characters");
 
-		auto slash = host.indexOf('/');
-		if (slash >= 0) host = host[0 .. slash];
+		if (url.canFind('?') || url.canFind('#'))
+			throw new PostinoException("Invalid SMTP URL: ? and # are not allowed");
 
-		auto at = host.indexOf('@');
-		if (at >= 0) host = host[at + 1 .. $];
+		auto slash = rest.indexOf('/');
+		string authority = slash >= 0 ? rest[0 .. slash] : rest;
 
-		if (host.startsWith("[")) {
-			auto close = host.indexOf(']');
-			host = close >= 0 ? host[1 .. close] : host[1 .. $];
+		if (authority.canFind('@'))
+			throw new PostinoException("Invalid SMTP URL: don't put credentials in the URL, pass them to send()");
+
+		string host;
+
+		if (authority.startsWith("[")) {
+			auto close = authority.indexOf(']');
+			if (close < 0) throw new PostinoException("Invalid SMTP URL: missing ]");
+			host = authority[1 .. close];
 		} else {
-			auto colon = host.indexOf(':');
-			if (colon >= 0) host = host[0 .. colon];
+			auto colon = authority.indexOf(':');
+			host = colon >= 0 ? authority[0 .. colon] : authority;
 		}
 
-		immutable isLocal = host == "localhost" || host.startsWith("127.") || host == "::1";
-		return !isLocal;
+		if (host.length == 0)
+			throw new PostinoException("Invalid SMTP URL: missing host");
+
+		return host;
+	}
+
+	// localhost, or an IP address of this machine's loopback: 127.0.0.0/8 or ::1.
+	// Names are not resolved: 127.example.com is not local.
+	static bool isLoopback(string host)
+	{
+		import std.socket : InternetAddress, Internet6Address;
+
+		static immutable ubyte[16] loopback6 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+
+		if (host == "localhost")
+			return true;
+
+		// An IPv4 address (in host byte order), or ADDR_NONE if host is not one
+		immutable v4 = InternetAddress.parse(host);
+		if (v4 != InternetAddress.ADDR_NONE)
+			return (v4 >> 24) == 127;
+
+		try return Internet6Address.parse(host) == loopback6;
+		catch (Exception) return false;
+	}
+
+	// With smtp:// and credentials STARTTLS is required, unless the server is on this machine
+	static bool requiresStartTls(string smtpServerUrl)
+	{
+		// smtpHost first: it checks the URL, smtps:// included
+		immutable host = smtpHost(smtpServerUrl);
+		return smtpServerUrl.toLower.startsWith("smtp://") && !isLoopback(host);
 	}
 
 	Attachment[string] embeddedFiles;
@@ -1225,14 +1430,16 @@ class Email
 	string plainTextBody;
 	string htmlBody;
 
-	__gshared SysTime startTime;
 }
 
 version(unittest)
 {
 	import std.file : tempDir, remove, readText, write;
 	import std.array : split, replicate;
-	import std.algorithm : filter, countUntil;
+	import std.algorithm : filter, countUntil, any;
+	import std.exception : collectExceptionMsg;
+	import std.string : representation;
+	import core.atomic : atomicLoad;
 	import std.path : buildPath;
 	import std.string : indexOf, splitLines;
 	import std.exception : assertThrown, assertNotThrown;
@@ -1368,7 +1575,7 @@ unittest
 	assertThrown(email.addEmbeddedFile(cast(ubyte[])"x", "", "image/png"));
 	assertThrown(email.addEmbeddedFile(cast(ubyte[])"x", "id", "image/png\r\nX-Injected: yes"));
 	assertThrown(email.addAttachment(cast(ubyte[])"x", "text"));
-	assertThrown(email.addAttachment("file.txt", "text/plain; charset=utf-8"));
+	assertThrown(email.attachFile("file.txt", "text/plain; charset=utf-8"));
 
 	string path = tempFile("data.bin");
 	write(path, "data");
@@ -1378,8 +1585,8 @@ unittest
 		.setFrom("sender@example.com")
 		.addTo("to@example.com")
 		.setHtmlBody("<img src='cid:logo'>")
-		.addEmbeddedFile(path, "logo", "image/png")
-		.addAttachment(path, "application/x-custom", "custom.bin")
+		.embedFile(path, "logo", "image/png")
+		.attachFile(path, "application/x-custom", "custom.bin")
 		.build();
 
 	assert(message.canFind("Content-Type: image/png\r\nContent-ID: <logo>\r\n"));
@@ -1415,7 +1622,7 @@ unittest
 	auto email = new Email()
 		.setFrom("sender@example.com")
 		.addTo("to@example.com")
-		.addAttachment("/nonexistent/postino/report.pdf");
+		.attachFile("/nonexistent/postino/report.pdf");
 
 	assertThrown(email.build());
 	assertThrown(email.save(tempFile("never.eml")));
@@ -1907,5 +2114,262 @@ unittest
 	assertThrown!PostinoException(new Email().addEmbeddedFile(cast(ubyte[])"x", "<id>", "image/png"));
 	assertThrown!PostinoException(new Email().addAttachment(cast(ubyte[])"x", "png"));
 	assertThrown!PostinoException(new Email().addTo("a@example.com").build());
-	assertThrown!PostinoException(new Email().setFrom("a@example.com").addTo("b@example.com").addAttachment("/nonexistent/file").build());
+	assertThrown!PostinoException(new Email().setFrom("a@example.com").addTo("b@example.com").attachFile("/nonexistent/file").build());
+}
+
+// The old names with a path still work, as deprecated aliases of attachFile and embedFile
+deprecated unittest
+{
+	string path = tempFile("old.txt");
+	write(path, "old api");
+	scope(exit) remove(path);
+
+	string message = new Email()
+		.setFrom("a@example.com")
+		.addTo("b@example.com")
+		.setHtmlBody("<img src='cid:x'>")
+		.addEmbeddedFile(path, "x", "image/png")
+		.addAttachment(path)
+		.build();
+
+	assert(message.canFind("Content-ID: <x>"));
+	assert(message.canFind("filename=\"" ~ baseName(path) ~ "\""));
+	assert(message.canFind(Base64.encode(cast(ubyte[])"old api")));
+}
+
+// Audit 1: credentials in the URL are refused, never sent
+unittest
+{
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	auto email = new Email().setFrom("a@example.com").addTo("b@example.com").setPlainTextBody("Hi");
+	immutable port = server.port.to!string;
+
+	foreach (url; ["smtp://user:secret@0.0.0.0:" ~ port, "smtp://user@localhost:" ~ port, "smtps://user:secret@smtp.example.com"])
+		assert(collectExceptionMsg!PostinoException(email.send(url)).canFind("credentials"), url);
+
+	assert(atomicLoad(server.connections) == 0);
+}
+
+// Audit 2: the host checked is the host libcurl connects to; only real loopback addresses are local
+unittest
+{
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	auto email = new Email().setFrom("a@example.com").addTo("b@example.com").setPlainTextBody("Hi");
+	immutable port = server.port.to!string;
+
+	// "?@localhost" and "#@localhost" used to make the host look local
+	foreach (url; ["smtp://0.0.0.0:" ~ port ~ "?@localhost", "smtp://0.0.0.0:" ~ port ~ "#@localhost", "smtp://0.0.0.0:" ~ port ~ "/?x"])
+		assertThrown!PostinoException(email.send(url, "user", "secret"), url);
+
+	assert(atomicLoad(server.connections) == 0);
+
+	// 0.0.0.0 is not local for postino (it connects to this machine on Linux): STARTTLS is required,
+	// the fake server does not offer it, so nothing is sent
+	assertThrown(email.send("smtp://0.0.0.0:" ~ port, "user", "secret"));
+	assert(!server.commands().any!(c => c.startsWith("AUTH")));
+
+	foreach (host; ["localhost", "127.0.0.1", "127.1.2.3", "::1"])
+		assert(Email.isLoopback(host), host);
+
+	foreach (host; ["127.evil.com", "127.0.0.1.nip.io", "localhost.evil.com", "0.0.0.0", "10.0.0.1", "::ffff:127.0.0.1", "2001:db8::1", "example.com"])
+		assert(!Email.isLoopback(host), host);
+
+	assert(Email.requiresStartTls("smtp://127.evil.com:587"));
+
+	foreach (url; ["http://example.com", "smtp://", "smtp://:25", "smtp://[::1", "smtp://exa mple.com", "smtp://example.com\r\n"])
+		assertThrown!PostinoException(Email.smtpHost(url), url);
+}
+
+// Audit 3: data from memory is copied, clone() can't share it with the caller
+unittest
+{
+	ubyte[] buffer = "alice-data".dup.representation;
+
+	auto alice = new Email().setFrom("a@example.com").addTo("alice@example.com")
+		.addAttachment(buffer, "text/plain", "data.txt")
+		.addEmbeddedFile(buffer, "img", "image/png");
+
+	auto copy = alice.clone();
+
+	buffer[0 .. 5] = "bobby".representation;   // the caller reuses its buffer for the next recipient
+
+	foreach (message; [alice.build(), copy.build()])
+	{
+		assert(message.canFind(Base64.encode("alice-data".representation)));
+		assert(!message.canFind(Base64.encode("bobby-data".representation)));
+	}
+}
+
+// Audit 4: attachFile and embedFile read files, addAttachment and addEmbeddedFile take data only
+unittest
+{
+	auto email = new Email().setFrom("a@example.com").addTo("b@example.com");
+
+	assertThrown!PostinoException(email.attachFile(""));
+	assertThrown!PostinoException(email.embedFile("", "x"));
+
+	// A directory or a missing file is a PostinoException at build time
+	assertThrown!PostinoException(email.clone().attachFile(tempDir).build());
+	assertThrown!PostinoException(email.clone().embedFile("/nonexistent/x.png", "x").build());
+
+	// Text as data: the content is sent, no file is read
+	string csv = "/etc/passwd";
+	string message = email.clone().addAttachment(csv.representation, "text/csv", "a.csv").build();
+	assert(message.canFind(Base64.encode("/etc/passwd".representation)));
+}
+
+// Audit 5: only CR and LF end a line, other separators are content
+unittest
+{
+	assert(Email.encodeQuotedPrintable("a\u2028b") == "a=E2=80=A8b\r\n");
+	assert(Email.encodeQuotedPrintable("a\u2029b\u0085c") == "a=E2=80=A9b=C2=85c\r\n");
+	assert(Email.encodeQuotedPrintable("a\fb\vc") == "a=0Cb=0Bc\r\n");
+	assert(Email.encodeQuotedPrintable("a\r\nb\nc\rd\n") == "a\r\nb\r\nc\r\nd\r\n");
+	assert(Email.encodeQuotedPrintable("a\n\n") == "a\r\n\r\n");
+	assert(Email.encodeQuotedPrintable("") == "");
+}
+
+// Audit 6: domains are mapped as browsers do, invisible characters are refused
+unittest
+{
+	// Fullwidth letters and ideographic dots become plain ASCII
+	assert(Email.validateEmailAddress("a@ｅｘａｍｐｌｅ.com") == "a@example.com");
+	assert(Email.validateEmailAddress("a@example。com") == "a@example.com");
+	assert(Email.validateEmailAddress("a@example．com") == "a@example.com");
+	assert(Email.validateEmailAddress("a@città｡it") == "a@xn--citt-3na.it");
+
+	// Invisible characters and symbols
+	foreach (bad; ["a@exam\u00ADple.com", "a@exam\u200Bple.com", "a@exa\u200Dmple.com", "a@ex★ample.com", "a@exam＠ple.com", "a@exam（ple.com"])
+		assertThrown!PostinoException(Email.validateEmailAddress(bad), bad);
+
+	// Invalid UTF-8
+	assertThrown!PostinoException(Email.validateEmailAddress("a@exam\xFFple.com"));
+
+	// The length is checked after the conversion
+	string longLabel = "è".replicate(30);
+	assertThrown!PostinoException(Email.validateEmailAddress("a@" ~ [longLabel, longLabel, longLabel, longLabel, longLabel].join(".") ~ ".it"));
+}
+
+// Audit 7: names and subjects that look like encoded-words are shown as they are, not decoded
+unittest
+{
+	string headers = headersOf(new Email()
+		.setFrom("a@example.com", "=?UTF-8?B?c3VwcG9ydEBiYW5rLmNvbQ==?=")
+		.addTo("b@example.com")
+		.setSubject("=?UTF-8?B?ZmFrZQ==?=")
+		.addHeader("X-Note", "=?UTF-8?B?ZmFrZQ==?=")
+		.build());
+
+	assert(headers.canFind("\r\nFrom: \"=?UTF-8?B?c3VwcG9ydEBiYW5rLmNvbQ==?=\" <a@example.com>\r\n"));
+	assert(headers.canFind("\r\nSubject: =?UTF-8?B?" ~ Base64.encode("=?UTF-8?B?ZmFrZQ==?=".representation) ~ "?="));
+	assert(headers.canFind("\r\nX-Note: =?UTF-8?B?" ~ Base64.encode("=?UTF-8?B?ZmFrZQ==?=".representation) ~ "?="));
+}
+
+// Audit 8: control characters never reach the headers, invalid UTF-8 is refused
+unittest
+{
+	string headers = headersOf(new Email()
+		.setFrom("a@example.com", "Na\x1Bme\x7F")
+		.addTo("b@example.com")
+		.setSubject("Sub\x0Bject\x1B[31m\tok")
+		.addAttachment("x".representation, "text/plain", "fi\x1Ble.txt")
+		.build());
+
+	foreach (char c; headers)
+		assert(c >= 32 && c != 127 || c == '\r' || c == '\n' || c == '\t', format("%02X", cast(ubyte)c));
+
+	assert(headers.canFind("\r\nSubject: Subject[31m\tok\r\n"));
+
+	auto email = new Email();
+	assertThrown!PostinoException(email.addHeader("X-A", "a\x0Bb"));
+	assertThrown!PostinoException(email.addHeader("X-A", "a\x1Bb"));
+	assertThrown!PostinoException(email.addHeader("X-A", "a\x7Fb"));
+	assertNotThrown(email.addHeader("X-A", "a\tb"));
+
+	assertThrown!PostinoException(email.setSubject("bad \xFF utf-8"));
+	assertThrown!PostinoException(email.setPlainTextBody("bad \xC3"));
+	assertThrown!PostinoException(email.setHtmlBody("\xFE"));
+	assertThrown!PostinoException(email.addTo("b@example.com", "bad \xFF"));
+	assertThrown!PostinoException(email.addHeader("X-A", "\xFF"));
+	assertThrown!PostinoException(email.addAttachment("x".representation, "text/plain", "bad\xFF.txt"));
+}
+
+// Audit 9: use_ssl is set at every send, a reused SMTP object does not keep it
+unittest
+{
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	immutable port = server.port.to!string;
+	auto mail() { return new Email().setFrom("a@example.com").addTo("b@example.com").setPlainTextBody("Hi"); }
+	auto smtp = SMTP();
+
+	// A remote server with credentials: STARTTLS required, refused by the fake server
+	assertThrown(mail().send("smtp://0.0.0.0:" ~ port, "user", "secret", smtp));
+
+	// Then a local one without credentials, with the same SMTP object: plain SMTP works
+	mail().send("smtp://localhost:" ~ port, "", "", smtp);
+	assert(server.commands().canFind("RCPT TO:<b@example.com>"));
+}
+
+// Audit 10: filename* is a valid RFC 2231 value
+unittest
+{
+	assert(Email.percentEncode("l'été (1)*.txt") == "l%27%C3%A9t%C3%A9%20%281%29%2A.txt");
+	assert(Email.percentEncode("a-b_c.d~e!#$&+^`|") == "a-b_c.d~e!#$&+^`|");
+
+	string message = new Email().setFrom("a@example.com").addTo("b@example.com")
+		.addAttachment("x".representation, "text/plain", "l'été (1).txt").build();
+
+	assert(message.canFind("filename*=UTF-8''l%27%C3%A9t%C3%A9%20%281%29.txt;"));
+}
+
+// Audit 11: a long ASCII subject is folded at spaces, every header line stays short
+unittest
+{
+	string subject = "word ".replicate(300).strip;
+	string headers = headersOf(new Email().setFrom("a@example.com").addTo("b@example.com").setSubject(subject).build());
+
+	foreach (line; headers.split("\r\n"))
+		assert(line.length <= 78, line);
+
+	// Unfolding gives the subject back
+	auto start = headers.indexOf("\r\nSubject: ") + "\r\nSubject: ".length;
+	auto end = headers.indexOf("\r\n", start);
+	while (headers[end + 2] == ' ') end = headers.indexOf("\r\n", end + 2);
+	assert(headers[start .. end].replace("\r\n", "") == subject);
+
+	// A single word too long for a line is encoded
+	string longWord = "x".replicate(1200);
+	headers = headersOf(new Email().setFrom("a@example.com").addTo("b@example.com").setSubject(longWord).build());
+
+	foreach (line; headers.split("\r\n"))
+		assert(line.length <= 78, line[0 .. 20]);
+}
+
+// Audit 13: a boundary never appears in the content it separates
+unittest
+{
+	string[] parts = ["text with postino_alt_ inside", "more"];
+
+	foreach (i; 0 .. 100)
+	{
+		string boundary = Email.randomBoundary("alt", parts);
+		assert(boundary.startsWith("postino_alt_") && boundary.length == "postino_alt_".length + 64);
+		assert(!parts.any!(p => p.canFind(boundary)));
+	}
+}
+
+// Audit 14: MIME types from upper case extensions, .ts is video/mp2t
+unittest
+{
+	auto email = new Email();
+	assert(email.getMimeType("photo.JPG") == "image/jpeg");
+	assert(email.getMimeType("Report.PDF") == "application/pdf");
+	assert(email.getMimeType("clip.ts") == "video/mp2t");
+	assert(email.getMimeType("noext") == "application/octet-stream");
 }
