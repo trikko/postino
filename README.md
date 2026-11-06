@@ -154,6 +154,10 @@ new Email()
 | `embedFile(path, cid, mimeType?)` | Embed a file for the HTML (`<img src="cid:...">`) |
 | `addEmbeddedFile(data, cid, mimeType)` | Embed data from memory (copied) |
 
+`addAttachment(path)` and `addEmbeddedFile(path, cid)` of 0.1.6 still work but are deprecated:
+a string passed to them is a path, use `attachFile` and `embedFile`. Text as data goes to
+`addAttachment(text.representation, ...)`.
+
 Invalid addresses, headers, Content-IDs and MIME types throw a `PostinoException` as soon as they are added.
 Internationalized domains are fine: `info@città.it` is sent as `info@xn--citt-3na.it`.
 

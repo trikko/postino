@@ -497,8 +497,9 @@ class Email
 	 *
 	 * Returns: true if the email was sent successfully
 	 *
-	 * Throws: PostinoException if the email has no sender or no recipients, if a file to attach is missing,
-	 *         or if the SMTP operation fails (CurlException)
+	 * Throws: PostinoException if the URL is not valid (credentials, "?" or "#" in it), if the email has
+	 *         no sender or no recipients, or if a file to attach is missing or unreadable;
+	 *         CurlException if the connection, TLS, authentication or the SMTP operation fails
 	 *
 	 * Example:
 	 * ---
@@ -535,8 +536,8 @@ class Email
 	 *
 	 * Returns: true if the email was sent successfully
 	 *
-	 * Throws: PostinoException if username or the token are empty, if the email has no sender or
-	 *         no recipients, or if a file to attach is missing;
+	 * Throws: PostinoException if username or the token are empty, if the URL is not valid, if the email
+	 *         has no sender or no recipients, or if a file to attach is missing or unreadable;
 	 *         CurlException if the server refuses the token or the SMTP operation fails
 	 *
 	 * Example:

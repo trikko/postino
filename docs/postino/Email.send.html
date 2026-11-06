@@ -101,8 +101,9 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 </p>
 </section>
 <section><h3>Throws</h3>
-<p>PostinoException if the email has no sender or no recipients, if a file to attach is missing,
-         or if the SMTP operation fails (CurlException)
+<p>PostinoException if the URL is not valid (credentials, "?" or "#" in it), if the email has
+         no sender or no recipients, or if a file to attach is missing or unreadable;
+         CurlException if the connection, TLS, authentication or the SMTP operation fails
 </p>
 </section>
 <section><h3>Example</h3>
@@ -144,8 +145,8 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 </p>
 </section>
 <section><h3>Throws</h3>
-<p>PostinoException if username or the token are empty, if the email has no sender or
-         no recipients, or if a file to attach is missing;
+<p>PostinoException if username or the token are empty, if the URL is not valid, if the email
+         has no sender or no recipients, or if a file to attach is missing or unreadable;
          CurlException if the server refuses the token or the SMTP operation fails
 </p>
 </section>
