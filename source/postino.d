@@ -425,6 +425,9 @@ class Email
 	 * travel in clear: the server must support it, or send() throws.
 	 * Servers on localhost are the exception.
 	 *
+	 * Pass the same smtp object to many sends to reuse the connection. Each send sets its own
+	 * credentials on it, or none: those of a previous send are never reused.
+	 *
 	 * Params:
 	 *     smtpServerUrl = SMTP server URL (e.g., "smtps://smtp.gmail.com:465" or "smtp://smtp.example.com:587")
 	 *     username = SMTP authentication username (optional)
@@ -446,6 +449,9 @@ class Email
 	bool send(string smtpServerUrl, string username = string.init, string password = string.init, SMTP smtp = SMTP())
 	{
 		immutable hasCredentials = username.length > 0 && password.length > 0;
+
+		// A reused SMTP object may hold the credentials or the token of a previous send
+		clearCredentials(smtp);
 
 		if (hasCredentials)
 			smtp.setAuthentication(username, password);
@@ -482,6 +488,7 @@ class Email
 		if (username.length == 0 || auth.accessToken.length == 0)
 			throw new PostinoException("OAuth2 needs a username and an access token");
 
+		clearCredentials(smtp);
 		smtp.handle.set(CurlOption.username, username);
 		smtp.handle.set(curlOptionXOAuth2Bearer, auth.accessToken);
 
@@ -521,6 +528,15 @@ class Email
 
 	// CURLOPT_XOAUTH2_BEARER, missing from etc.c.curl
 	enum curlOptionXOAuth2Bearer = cast(CurlOption)10_220;
+
+	// Forget username, password and token: each send sets its own, or none
+	static void clearCredentials(SMTP smtp)
+	{
+		smtp.handle.clear(CurlOption.userpwd);
+		smtp.handle.clear(CurlOption.username);
+		smtp.handle.clear(CurlOption.password);
+		smtp.handle.clear(curlOptionXOAuth2Bearer);
+	}
 
 	bool deliver(string smtpServerUrl, bool hasCredentials, SMTP smtp)
 	{
@@ -1591,10 +1607,21 @@ version(unittest)
 				catch (Exception) return;
 
 				connections.atomicOp!"+="(1);
+
+				// One thread per connection: libcurl keeps a connection open while it opens another
+				auto worker = new Thread(serveAndClose(client));
+				worker.isDaemon = true;
+				worker.start();
+			}
+		}
+
+		void delegate() serveAndClose(Socket client)
+		{
+			return () {
 				try serve(client);
 				catch (Exception) {}
 				client.close();
-			}
+			};
 		}
 
 		void serve(Socket client)
@@ -1715,6 +1742,47 @@ unittest
 	auto rcpt = server.commands().filter!(c => c.startsWith("RCPT TO:")).array;
 	assert(rcpt == ["RCPT TO:<one@example.com>", "RCPT TO:<two@example.com>", "RCPT TO:<three@example.com>"], rcpt.join(" | "));
 	assert(newsletter.to.length == 0);
+}
+
+// One SMTP object, different credentials: each send uses its own, never those of the previous one
+unittest
+{
+	import core.atomic : atomicLoad;
+
+	auto server = new FakeSmtpServer();
+	scope(exit) server.stop();
+
+	immutable url = "smtp://localhost:" ~ server.port.to!string;
+	auto smtp = SMTP();
+	auto mail(string to) { return new Email().setFrom("a@example.com").addTo(to).setPlainTextBody("Hi"); }
+
+	// The credentials sent after each AUTH, decoded
+	string[] logins()
+	{
+		string[] result;
+		auto commands = server.commands();
+
+		foreach (i, c; commands)
+			if (c.startsWith("AUTH") && i + 1 < commands.length)
+				result ~= cast(string)Base64.decode(commands[i + 1]);
+
+		return result;
+	}
+
+	mail("1@example.com").send(url, "mario", "pw1", smtp);
+	mail("2@example.com").send(url, "mario", "pw1", smtp);           // same credentials: same connection
+	assert(atomicLoad(server.connections) == 1);
+
+	mail("3@example.com").send(url, "mario", "pw2", smtp);           // new password: new login
+	mail("4@example.com").send(url, "luigi", OAuth2("tok"), smtp);   // OAuth2 after a password
+	mail("5@example.com").send(url, "luigi", "pw3", smtp);           // a password after OAuth2: no token left
+	mail("6@example.com").send(url, "", "", smtp);                   // no credentials: no login at all
+
+	assert(logins() == ["\0mario\0pw1", "\0mario\0pw2", "user=luigi\x01auth=Bearer tok\x01\x01", "\0luigi\0pw3"], logins().join(" | "));
+
+	// The last email did not reuse the authenticated connection
+	assert(atomicLoad(server.connections) == 5, atomicLoad(server.connections).to!string);
+	assert(server.commands().canFind("RCPT TO:<6@example.com>"));
 }
 
 // A new SMTP object for each email opens a new connection

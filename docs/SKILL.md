@@ -112,7 +112,8 @@ that uses `std.net.curl`.
     people, build it once and send `email.clone().addTo(address)` for each:
     never a long `addBcc` list, never `addTo` on the same object in a loop
     (recipients accumulate). Pass the same `SMTP` object to every `send`: the
-    connection is reused instead of opening one per email.
+    connection is reused instead of opening one per email. Credentials go to
+    `send` every time; with different ones a new connection is opened.
     `clearTo`, `clearCc`, `clearBcc`, `clearHeaders`, `clearAttachments` and
     `clearEmbeddedFiles` empty what the matching `add*` added. Every send
     gets new boundaries, Date and Message-ID.

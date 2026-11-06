@@ -213,6 +213,8 @@ Read the credentials from the environment or a secrets store, not from the sourc
 
 A new `SMTP` (the default argument) opens a new connection for every `send`. Pass the same `SMTP` object to every `send` and the connection is reused: one connection, one TLS handshake and one login for all the emails, as long as the server keeps it open.
 
+Each `send` sets its own credentials on the `SMTP` object: a password, a token, or none. Those of a previous `send` are cleared, never reused. With different credentials (another user, a new password or token, none) libcurl opens a new connection and logs in again, so one `SMTP` object can serve many accounts safely. Credentials set on the `SMTP` object by hand are replaced too: pass them to `send`.
+
 For newsletters, build the message once and send a `clone()` to each recipient with `addTo` (not a long `addBcc` list, and not `addTo` on the same object in a loop: recipients accumulate):
 
 ```d

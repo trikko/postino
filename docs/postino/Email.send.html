@@ -83,6 +83,10 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
  travel in clear: the server must support it, or send() throws.
  Servers on localhost are the exception.
 </p>
+
+<p> Pass the same smtp object to many sends to reuse the connection. Each send sets its own
+ credentials on it, or none: those of a previous send are never reused.
+</p>
 </section>
 <section><h3>Parameters</h3>
 <table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
