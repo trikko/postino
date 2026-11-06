@@ -2,7 +2,7 @@
 
 postino is a library for the D programming language that builds MIME emails (plain text, HTML, embedded images, attachments) and sends them over SMTP through libcurl (`std.net.curl`), or saves them as `.eml` files. One class, `Email`, with chainable setters. MIT license. `import postino;`.
 
-This file documents version 0.1.6; see "Versions" at the end for what 0.1.5 and earlier do differently.
+This file documents version 0.1.7; see "Versions" at the end for what older versions do differently.
 
 - Rules for agents: https://trikko.github.io/postino/AGENTS.md
 - API documentation: https://trikko.github.io/postino/
@@ -31,7 +31,8 @@ Email setReplyTo(string address, string name = string.init);
 ```
 
 - `address` is only the address (`"alice@example.com"`); the display name is `name`. `"Alice <alice@example.com>"` as address is invalid.
-- Addresses are checked when they are added, and an invalid one throws `Exception` at once. Rejected: an empty address, more than 254 characters, spaces and control characters (CR and LF included: no header injection), any of `()<>[]\,;:"`, not exactly one `@`, a local part (before `@`) empty or longer than 64 characters, a local part that starts or ends with a dot or contains `..`, an empty domain, empty domain labels (`a@.com`, `a@b..com`), labels that start or end with `-`. Quoted local parts (`"john doe"@example.com`) are not supported. Non-ASCII characters are accepted as they are.
+- Addresses are checked when they are added, and an invalid one throws `PostinoException` at once. Rejected: an empty address, more than 254 characters, spaces and control characters (CR and LF included: no header injection), any of `()<>[]\,;:"`, not exactly one `@`, a local part (before `@`) empty or longer than 64 characters, a local part that starts or ends with a dot or contains `..`, an empty domain, empty domain labels (`a@.com`, `a@b..com`), labels that start or end with `-`. Quoted local parts (`"john doe"@example.com`) are not supported.
+- Non-ASCII characters before `@` (`andrè@example.com`) throw: they need SMTPUTF8, which postino does not support. Internationalized domains are accepted and written as punycode: `info@città.it` becomes `info@xn--citt-3na.it` (normalized to NFC and lowercase first), in the headers and in the envelope.
 - `addTo`, `addCc` and `addBcc` can be called many times; `setFrom` and `setReplyTo` replace the previous value.
 - **To** and **Cc** recipients are listed in the headers. **Bcc** recipients receive the email but are never written in the message, not even in the file of `save`. All three are in the SMTP envelope (`RCPT TO`).
 - If there are no To recipients (only Cc or Bcc), the header is `To: undisclosed-recipients:;`.
@@ -99,11 +100,46 @@ email.addAttachment("/tmp/report.pdf")                         // application/pd
 
 ### Files are read late
 
-`addAttachment(path)` and `addEmbeddedFile(path, cid)` store the path only. The file is read by `send` and `save`, every time; if it does not exist then, they throw `Exception("File not found: ...")`. Do not delete the file before sending. The `ubyte[]` overloads keep a reference to the array: do not change it before sending.
+`addAttachment(path)` and `addEmbeddedFile(path, cid)` store the path only. The file is read by `send` and `save`, every time; if it does not exist then, they throw `PostinoException("File not found: ...")`. Do not delete the file before sending. The `ubyte[]` overloads keep a reference to the array: do not change it before sending.
 
 ## MIME types
 
-A given `mimeType` must be `type/subtype` made of RFC 2045 token characters, with no parameters: `"image/png"`, `"application/vnd.ms-excel"`. `"text/plain; charset=utf-8"`, `"png"` or anything with CR/LF throws `Exception`. The extension table covers common text, image, font, archive, office, audio and video formats; unknown extensions are `application/octet-stream`.
+A given `mimeType` must be `type/subtype` made of RFC 2045 token characters, with no parameters: `"image/png"`, `"application/vnd.ms-excel"`. `"text/plain; charset=utf-8"`, `"png"` or anything with CR/LF throws `PostinoException`. The extension table covers common text, image, font, archive, office, audio and video formats; unknown extensions are `application/octet-stream`.
+
+## Custom headers
+
+```d
+Email addHeader(string name, string value);
+Email clearHeaders();
+```
+
+- For the headers postino has no setter for: `List-Unsubscribe`, `List-Unsubscribe-Post`, `In-Reply-To`, `References`, `X-Mailer`, `X-...`. Written after `Subject`, in the order they are added; the same name can be added more than once.
+- Throws `PostinoException` for the headers postino writes itself: `MIME-Version`, `Date`, `Message-ID`, `From`, `To`, `Cc`, `Bcc`, `Reply-To`, `Subject` and every `Content-*` (case-insensitive). Use the setters for those.
+- The name is printable ASCII without spaces and `:`; the value can't contain CR, LF or NUL (it throws: values are never cleaned silently), and an ASCII value can't make the line longer than 998 characters. Non-ASCII values are RFC 2047 encoded.
+- Values are written as given: the syntax of structured headers (`<...>` around URLs and Message-IDs) is up to you.
+
+```d
+// One-click unsubscribe, required by Gmail and Yahoo for bulk senders
+email.addHeader("List-Unsubscribe", "<https://example.com/unsubscribe?id=42>, <mailto:unsubscribe@example.com?subject=unsubscribe>")
+     .addHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+
+// A reply in the same thread
+email.setSubject("Re: Order 1234")
+     .addHeader("In-Reply-To", "<original-id@example.com>")
+     .addHeader("References", "<original-id@example.com>");
+```
+
+## Copying and clearing
+
+```d
+Email clone();
+Email clearTo();  Email clearCc();  Email clearBcc();
+Email clearHeaders();  Email clearAttachments();  Email clearEmbeddedFiles();
+```
+
+- `clone()` returns an independent copy: sender, recipients, Reply-To, subject, bodies, headers, embedded files and attachments. Changing the copy does not change the original. Attachments added from memory share the same `ubyte[]`: do not modify it.
+- Each `clear*` empties what the matching `add*` added. There is no way to remove a single recipient.
+- `setFrom`, `setReplyTo`, `setSubject` and the bodies are replaced by calling them again.
 
 ## Sending
 
@@ -111,8 +147,8 @@ A given `mimeType` must be `type/subtype` made of RFC 2045 token characters, wit
 bool send(string smtpServerUrl, string username = string.init, string password = string.init, SMTP smtp = SMTP());
 ```
 
-- Blocking: connects, authenticates if `username` and `password` are both non-empty, sends to every To, Cc and Bcc recipient, and disconnects. Returns `true`; every error is an exception, never `false`.
-- Throws `Exception` if there is no sender (`setFrom`), no recipient at all, or a file to attach is missing; `CurlException` for connection, TLS, authentication or server errors (a rejected recipient included).
+- Blocking: connects (or reuses the connection of the `SMTP` passed, see "Many emails"), authenticates if `username` and `password` are both non-empty, and sends to every To, Cc and Bcc recipient. Returns `true`; every error is an exception, never `false`.
+- Throws `PostinoException` if there is no sender (`setFrom`), no recipient at all, or a file to attach is missing, before connecting; `CurlException` for connection, TLS, authentication or server errors (a rejected recipient included).
 - The envelope sender (`MAIL FROM`) is the `setFrom` address.
 
 ### SMTP URL and TLS
@@ -140,6 +176,23 @@ email.send("smtp://localhost:25");                                              
 email.send("smtp://localhost:1025");                                               // Mailpit, MailHog
 ```
 
+### OAuth2
+
+```d
+struct OAuth2 { string accessToken; }
+bool send(string smtpServerUrl, string username, OAuth2 auth, SMTP smtp = SMTP());
+```
+
+- Authenticates with SASL XOAUTH2: what Gmail and Microsoft 365 (Exchange Online, Outlook) use instead of passwords.
+- `username` is the account the token belongs to, usually its email address; the OAuth 2.0 access token goes inside `OAuth2(...)`. A plain string as third argument is a password: `OAuth2` is a type of its own so that the two can't be mixed up. Both username and token are required: an empty one throws `PostinoException`.
+- postino does not get, store or refresh tokens: use the provider's OAuth flow (an authorization code or a service account) and pass a token that is still valid; access tokens usually last one hour. A refused or expired token is a `CurlException`.
+- Same TLS rules as `send`: `smtps://` is TLS, `smtp://` requires STARTTLS (except on localhost).
+
+```d
+email.send("smtp://smtp.office365.com:587", "user@example.com", OAuth2(accessToken));   // Microsoft 365
+email.send("smtps://smtp.gmail.com:465", "user@gmail.com", OAuth2(accessToken));        // Gmail
+```
+
 ### A configured SMTP
 
 The last argument is a `std.net.curl.SMTP`, for timeouts, proxies and other curl options. postino sets its URL, authentication, recipients and message, then performs it.
@@ -158,7 +211,30 @@ Read the credentials from the environment or a secrets store, not from the sourc
 
 ### Many emails
 
-Each `send` opens its own connection and waits for the server. For newsletters, send one `Email` per recipient (with `addTo`, not a long `addBcc` list), and keep sending out of the request path of a web server: hand the job to a queue (for example pacchettino) and send from a worker.
+A new `SMTP` (the default argument) opens a new connection for every `send`. Pass the same `SMTP` object to every `send` and the connection is reused: one connection, one TLS handshake and one login for all the emails, as long as the server keeps it open.
+
+For newsletters, build the message once and send a `clone()` to each recipient with `addTo` (not a long `addBcc` list, and not `addTo` on the same object in a loop: recipients accumulate):
+
+```d
+import std.net.curl : SMTP;
+
+auto newsletter = new Email()
+    .setFrom("news@example.com", "Example News")
+    .setSubject("November news")
+    .setPlainTextBody(text)
+    .setHtmlBody(html);
+
+auto smtp = SMTP();   // shared: one connection for all
+
+foreach (s; subscribers)
+    newsletter.clone()
+        .addTo(s.email, s.name)
+        .addHeader("List-Unsubscribe", "<https://example.com/unsubscribe?id=" ~ s.id ~ ">")
+        .addHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click")
+        .send("smtp://smtp.example.com:587", "user", "password", smtp);
+```
+
+`send` still waits for the server: keep sending out of the request path of a web server, hand the job to a queue (for example pacchettino) and send from a worker.
 
 ## Saving
 
@@ -192,12 +268,16 @@ Boundaries, Date and Message-ID are new every time the message is built: sending
 
 | When | Exception |
 |---|---|
-| `setFrom`, `addTo`, `addCc`, `addBcc`, `setReplyTo` with an invalid address | `Exception` |
-| `addEmbeddedFile` with an invalid cid or MIME type, `addAttachment` with an invalid MIME type | `Exception` |
-| `send`/`save` without sender or without recipients | `Exception` |
-| `send`/`save` with a missing file | `Exception` |
+| `setFrom`, `addTo`, `addCc`, `addBcc`, `setReplyTo` with an invalid address | `PostinoException` |
+| `addEmbeddedFile` with an invalid cid or MIME type, `addAttachment` with an invalid MIME type | `PostinoException` |
+| `addHeader` with an invalid or reserved name, or a value with CR/LF | `PostinoException` |
+| `send`/`save` without sender or without recipients | `PostinoException` |
+| `send`/`save` with a missing file | `PostinoException` |
+| `send` with `OAuth2` and an empty username or token | `PostinoException` |
 | `save` cannot write the file | `FileException` |
 | `send`: connection, TLS, STARTTLS missing, authentication, rejected recipient | `CurlException` |
+
+`PostinoException` derives from `Exception`; `CurlException` comes from `std.net.curl`. Catch `PostinoException` to tell invalid input (often from users: a wrong address) from delivery problems.
 
 ## Worked example: a report with a chart
 
@@ -253,14 +333,16 @@ For an end-to-end test, run Mailpit (`smtp://localhost:1025`) and read the messa
 
 ## Limits
 
-- Blocking, one connection per `send`; no pooling, no async API.
-- No custom headers (`Sender`, `List-Unsubscribe`, `X-...`), no priority, no read receipts.
+- Blocking, no async API.
+- The Message-ID is generated and can't be set or read; the envelope sender (bounce address) is always the `setFrom` address.
 - No DKIM signing (let the SMTP server sign), no S/MIME or PGP.
 - No templates: build the strings yourself.
-- Authentication is what libcurl negotiates with username and password (PLAIN, LOGIN, CRAM-MD5, ...); no OAuth2/XOAUTH2.
-- Quoted local parts in addresses are not supported.
+- OAuth2 tokens are sent, not obtained or refreshed.
+- Quoted local parts and non-ASCII characters before `@` (SMTPUTF8) are not supported.
 - No receiving mail (IMAP, POP3).
 
 ## Versions
+
+0.1.6 has everything in this file except `PostinoException` (errors are plain `Exception`), `addHeader`, `clearHeaders`, `OAuth2`, `clone`, the other `clear*` methods and punycode domains (non-ASCII addresses are accepted as they are).
 
 Up to 0.1.5: only To recipients received the email (Cc and Bcc were in the headers but not in the SMTP envelope), Bcc recipients were written in the headers, `smtp://` never used STARTTLS (credentials in clear), invalid addresses threw only at `send`, CR/LF in addresses were removed instead of rejected, the cid was not checked, the `mimeType` argument of the path overloads was ignored, bodies were sent as 8-bit without Content-Transfer-Encoding, attachments were in `multipart/related`, a missing file was sent empty, and `Date`/`Message-ID` were missing. `save` came with 0.1.5. On those versions do not use `addCc`/`addBcc` and do not send credentials over `smtp://`; upgrade.

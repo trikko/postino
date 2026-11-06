@@ -1,5 +1,6 @@
 # <img align="left" alt="postino logo" width="100" height="100" src="https://github.com/trikko/postino/raw/main/logo.png"> postino
 
+[![CI](https://github.com/trikko/postino/actions/workflows/ci.yml/badge.svg)](https://github.com/trikko/postino/actions/workflows/ci.yml)
 [![DUB](https://img.shields.io/dub/v/postino)](https://code.dlang.org/packages/postino)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -20,11 +21,19 @@ libcurl through Phobos' `std.net.curl` and has no other dependencies.
   encoded as the standards require, long lines included.
 - **TLS**: `smtps://` for implicit TLS, STARTTLS on `smtp://`. When you send a
   password, STARTTLS is mandatory: it never travels in clear.
-- **Checked input**: an invalid address, Content-ID or MIME type throws as soon
-  as you add it, and CR/LF in subjects or names can't inject headers.
+- **Checked input**: an invalid address, header, Content-ID or MIME type throws
+  a `PostinoException` as soon as you add it, and CR/LF in subjects or names
+  can't inject headers. Internationalized domains are converted to punycode.
+- **Custom headers**: `List-Unsubscribe` for newsletters, `In-Reply-To` and
+  `References` for replies, `X-...`.
+- **OAuth2**: `send(url, user, OAuth2(token))` for Gmail and Microsoft 365
+  without passwords.
+- **Many emails**: `clone()` a message for each recipient and reuse one
+  connection for all of them.
 - **Save instead of send**: `save("mail.eml")` writes exactly the message
   `send` would deliver. Open it in a mail client, or check it in your tests.
-- **Small**: one class, `Email`, in one file.
+- **Small**: one class, `Email`, in one file, tested against a real SMTP
+  server (Mailpit) on every push.
 
 ## Quick Start
 
@@ -132,6 +141,7 @@ new Email()
 | `addBcc(address, name?)` | Add hidden recipient: receives the email, never written in the headers |
 | `setReplyTo(address, name?)` | Set reply-to address |
 | `setSubject(subject)` | Set email subject |
+| `addHeader(name, value)` | Add a custom header (`List-Unsubscribe`, `In-Reply-To`, `X-...`) |
 
 ### Content (Chainable)
 
@@ -144,13 +154,23 @@ new Email()
 | `addEmbeddedFile(path, cid, mimeType?)` | Add embedded file for HTML (`<img src="cid:...">`) |
 | `addEmbeddedFile(data, cid, mimeType)` | Add embedded file from memory |
 
-Invalid addresses, Content-IDs and MIME types throw an `Exception` as soon as they are added.
+Invalid addresses, headers, Content-IDs and MIME types throw a `PostinoException` as soon as they are added.
+Internationalized domains are fine: `info@città.it` is sent as `info@xn--citt-3na.it`.
+
+### Copying and clearing (Chainable)
+
+| Method | Description |
+|--------|-------------|
+| `clone()` | Independent copy of the email, e.g. to send the same message to many people |
+| `clearTo()`, `clearCc()`, `clearBcc()` | Remove the recipients added with the matching `add*` |
+| `clearHeaders()`, `clearAttachments()`, `clearEmbeddedFiles()` | Remove what the matching `add*` added |
 
 ### Sending and saving
 
 | Method | Description |
 |--------|-------------|
 | `send(smtpUrl, username?, password?, smtp?)` | Send email via SMTP to every To, Cc and Bcc recipient |
+| `send(smtpUrl, username, OAuth2(token), smtp?)` | Same, authenticating with an OAuth 2.0 token (XOAUTH2) |
 | `save(path)` | Save the same message as a .eml file, without sending it |
 
 
@@ -190,6 +210,36 @@ import core.time : seconds;
 auto smtp = SMTP();
 smtp.connectTimeout = 10.seconds;
 email.send("smtp://smtp.example.com:587", "user", "password", smtp);
+```
+
+### OAuth2
+
+Gmail and Microsoft 365 can require OAuth2 instead of a password. Get an access
+token with the provider's OAuth flow (postino does not get or refresh it), then:
+
+```d
+email.send("smtp://smtp.office365.com:587", "user@example.com", OAuth2(accessToken));
+```
+
+### Many emails
+
+Pass the same `SMTP` object to every `send` and the connection is reused. With
+`clone()` the message is built once and sent to each recipient separately:
+
+```d
+auto newsletter = new Email()
+    .setFrom("news@example.com", "Example News")
+    .setSubject("November news")
+    .setHtmlBody(html);
+
+auto smtp = SMTP();
+
+foreach (s; subscribers)
+    newsletter.clone()
+        .addTo(s.email, s.name)
+        .addHeader("List-Unsubscribe", "<https://example.com/unsubscribe?id=" ~ s.id ~ ">")
+        .addHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click")
+        .send("smtp://smtp.example.com:587", "user", "password", smtp);
 ```
 
 ## Feedback & support

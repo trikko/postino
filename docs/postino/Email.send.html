@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Function Email.send</title>
+		<title>Email.send - multiple declarations</title>
 		<link rel="stylesheet" href="../css/style.min.css"/>
 		<script type="text/javascript" src="../js/script.min.js"></script>
 	</head>
@@ -28,6 +28,12 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<li class="tree-view collapsed">
 					<a class="toLower(to!string(Class))" href="../postino/Email.html">Email</a>
 				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Struct))" href="../postino/OAuth2.html">OAuth2</a>
+				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="../postino/PostinoException.html">PostinoException</a>
+				</li>
 				</ul>
 					</li>
 				</ul>
@@ -38,7 +44,21 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Function Email.send</h1><p>Sends the email using the specified SMTP server.
+				<h1>Email.send - multiple declarations</h1>
+				<nav class="page-nav">
+					<ul>
+						<li>
+							<a href="#0">
+								Function <code>Email.send</code>
+							</a>
+						</li>
+						<li>
+							<a href="#1">
+								Function <code>Email.send</code>
+							</a>
+						</li>
+					</ul>
+				</nav><h2 id="0">Function Email.send</h2><p>Sends the email using the specified SMTP server.
  The email is delivered to every To, Cc and Bcc recipient.
 </p>
 				<div class="prototype">
@@ -64,7 +84,7 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
  Servers on localhost are the exception.
 </p>
 </section>
-<section><h2>Parameters</h2>
+<section><h3>Parameters</h3>
 <table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
 <tr><td id="smtpServerUrl">smtpServerUrl</td><td> SMTP server URL (e.g., "smtps://smtp.gmail.com:465" or "smtp://smtp.example.com:587")</td></tr>
 <tr><td id="username">username</td><td> SMTP authentication username (optional)</td></tr>
@@ -72,19 +92,61 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 <tr><td id="smtp">smtp</td><td> Pre-configured SMTP object (optional)</td></tr>
 </table>
 </section>
-<section><h2>Returns</h2>
+<section><h3>Returns</h3>
 <p>true if the email was sent successfully
 </p>
 </section>
-<section><h2>Throws</h2>
-<p>Exception if the email has no sender or no recipients, if a file to attach is missing,
+<section><h3>Throws</h3>
+<p>PostinoException if the email has no sender or no recipients, if a file to attach is missing,
          or if the SMTP operation fails (CurlException)
 </p>
 </section>
-<section><h2>Example</h2>
+<section><h3>Example</h3>
 <pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">send</span><span class="pun">(</span><span class="str">"smtps://smtp.gmail.com:465"</span><span class="pun">, </span><span class="str">"user@gmail.com"</span><span class="pun">, </span><span class="str">"app_password"</span><span class="pun">);
 </span><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">send</span><span class="pun">(</span><span class="str">"smtp://smtp.example.com:587"</span><span class="pun">, </span><span class="str">"user"</span><span class="pun">, </span><span class="str">"password"</span><span class="pun">); </span><span class="com">// STARTTLS
 </span><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">send</span><span class="pun">(</span><span class="str">"smtp://localhost:25"</span><span class="pun">); </span><span class="com">// No authentication</span></code></pre>
+</section>
+<h2 id="1">Function Email.send</h2><p>Sends the email authenticating with an OAuth 2.0 access token (SASL XOAUTH2),
+ as Gmail and Microsoft 365 require when passwords are not allowed.
+ Getting and refreshing the token is up to you; postino only sends it.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="typ">bool</span> <span class="pln">send</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">smtpServerUrl</span><span class="pun">,</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">username</span><span class="pun">,</span>
+				<br/>&nbsp;&nbsp;<a href="../postino/OAuth2.html"><span class="typ">OAuth2</span></a> <span class="pln">auth</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">net<wbr/></span><span class="pun">.</span><span class="pln">curl<wbr/></span><span class="pun">.</span><span class="pln">SMTP</span> <span class="pln">smtp</span> <span class="pun">=</span> <span class="pln">opCall</span><span class="pun">()</span>
+				<br/>
+				<span class="pun">)</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<section><p>As with the password version, "smtp://" requires STARTTLS, except on localhost.
+</p>
+</section>
+<section><h3>Parameters</h3>
+<table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
+<tr><td id="smtpServerUrl">smtpServerUrl</td><td> SMTP server URL (e.g., "smtp://smtp.office365.com:587" or "smtps://smtp.gmail.com:465")</td></tr>
+<tr><td id="username">username</td><td> The account the token belongs to, usually its email address</td></tr>
+<tr><td id="auth">auth</td><td> The OAuth 2.0 access token, as OAuth2(token)</td></tr>
+<tr><td id="smtp">smtp</td><td> Pre-configured SMTP object (optional)</td></tr>
+</table>
+</section>
+<section><h3>Returns</h3>
+<p>true if the email was sent successfully
+</p>
+</section>
+<section><h3>Throws</h3>
+<p>PostinoException if username or the token are empty, if the email has no sender or
+         no recipients, or if a file to attach is missing;
+         CurlException if the server refuses the token or the SMTP operation fails
+</p>
+</section>
+<section><h3>Example</h3>
+<pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">send</span><span class="pun">(</span><span class="str">"smtp://smtp.office365.com:587"</span><span class="pun">, </span><span class="str">"user@example.com"</span><span class="pun">, <a href="../postino/OAuth2.html"></span><span class="typ">OAuth2</span></a><span class="pun">(</span><span class="pln">accessToken</span><span class="pun">));</span></code></pre>
 </section>
 
 			</div>

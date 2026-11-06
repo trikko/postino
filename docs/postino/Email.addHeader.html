@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Function Email.addHeader</title>
+		<link rel="stylesheet" href="../css/style.min.css"/>
+		<script type="text/javascript" src="../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li>
+						<a class="module selected" href="../postino.html">postino</a>
+				<ul class="tree-view">
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="../postino/Email.html">Email</a>
+				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Struct))" href="../postino/OAuth2.html">OAuth2</a>
+				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="../postino/PostinoException.html">PostinoException</a>
+				</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Function Email.addHeader</h1><p>Adds a custom header, e.g. List-Unsubscribe, In-Reply-To, References or X-Mailer.
+ The same header can be added more than once; headers are written in the order they are added.
+ Non-ASCII values are encoded according to RFC 2047.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addHeader</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">name</span><span class="pun">,</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">value</span>
+				<br/>
+				<span class="pun">)</span><span class="pln"> </span><span class="kwd">return</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<section><p>The headers that postino writes itself can't be added: MIME-Version, Date, Message-ID,
+ From, To, Cc, Bcc, Reply-To, Subject and the Content-* headers.
+</p>
+</section>
+<section><h2>Parameters</h2>
+<table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
+<tr><td id="name">name</td><td> Header name, e.g. "List-Unsubscribe"</td></tr>
+<tr><td id="value">value</td><td> Header value, without CR or LF</td></tr>
+</table>
+</section>
+<section><h2>Returns</h2>
+<p>Reference to this Email object for method chaining
+</p>
+</section>
+<section><h2>Throws</h2>
+<p>PostinoException if the name is not valid or is reserved, or the value contains CR, LF or NUL
+</p>
+</section>
+<section><h2>Example</h2>
+<pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">addHeader</span><span class="pun">(</span><span class="str">"List-Unsubscribe"</span><span class="pun">, </span><span class="str">"&lt;https://example.com/unsubscribe?id=42&gt;, &lt;mailto:unsubscribe@example.com&gt;"</span><span class="pun">)
+     <wbr/>.</span><span class="pln">addHeader</span><span class="pun">(</span><span class="str">"List-Unsubscribe-Post"</span><span class="pun">, </span><span class="str">"List-Unsubscribe=One-Click"</span><span class="pun">);</span></code></pre>
+</section>
+
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

@@ -28,6 +28,12 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<li class="tree-view collapsed">
 					<a class="toLower(to!string(Class))" href="../postino/Email.html">Email</a>
 				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Struct))" href="../postino/OAuth2.html">OAuth2</a>
+				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="../postino/PostinoException.html">PostinoException</a>
+				</li>
 				</ul>
 					</li>
 				</ul>
@@ -105,6 +111,18 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</tr>
 						<tr>
 							<td>
+								<a href="../postino/Email.addHeader.html" class="public">
+									<code>addHeader</code>
+								</a>
+								<span class="tableEntryAnnotation">(name, value)</span>
+							</td>
+							<td>Adds a custom header, e.g. List-Unsubscribe, In-Reply-To, References or X-Mailer.
+ The same header can be added more than once; headers are written in the order they are added.
+ Non-ASCII values are encoded according to RFC 2047.
+</td>
+						</tr>
+						<tr>
+							<td>
 								<a href="../postino/Email.addTo.html" class="public">
 									<code>addTo</code>
 								</a>
@@ -112,6 +130,78 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							</td>
 							<td>Adds a recipient to the email's "To" field.
  Multiple recipients can be added by calling this method multiple times.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.clearAttachments.html" class="public">
+									<code>clearAttachments</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Removes every file added with addAttachment().
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.clearBcc.html" class="public">
+									<code>clearBcc</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Removes every recipient added with addBcc().
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.clearCc.html" class="public">
+									<code>clearCc</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Removes every recipient added with addCc().
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.clearEmbeddedFiles.html" class="public">
+									<code>clearEmbeddedFiles</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Removes every file added with addEmbeddedFile().
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.clearHeaders.html" class="public">
+									<code>clearHeaders</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Removes every header added with addHeader().
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.clearTo.html" class="public">
+									<code>clearTo</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Removes every recipient added with addTo().
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.clone.html" class="public">
+									<code>clone</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Returns a copy of this email, to change it without touching the original:
+ for example the same message for many recipients, one at a time.
+ The copy shares the data of the attachments added from memory, so don't modify those arrays.
 </td>
 						</tr>
 						<tr>
@@ -135,6 +225,18 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							</td>
 							<td>Sends the email using the specified SMTP server.
  The email is delivered to every To, Cc and Bcc recipient.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.send.html" class="public">
+									<code>send</code>
+								</a>
+								<span class="tableEntryAnnotation">(smtpServerUrl, username, auth, smtp)</span>
+							</td>
+							<td>Sends the email authenticating with an OAuth 2.0 access token (SASL XOAUTH2),
+ as Gmail and Microsoft 365 require when passwords are not allowed.
+ Getting and refreshing the token is up to you; postino only sends it.
 </td>
 						</tr>
 						<tr>

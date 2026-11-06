@@ -28,6 +28,12 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<li class="tree-view collapsed">
 					<a class="toLower(to!string(Class))" href="./postino/Email.html">Email</a>
 				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Struct))" href="./postino/OAuth2.html">OAuth2</a>
+				</li>
+				<li class="tree-view collapsed">
+					<a class="toLower(to!string(Class))" href="./postino/PostinoException.html">PostinoException</a>
+				</li>
 				</ul>
 					</li>
 				</ul>
@@ -68,6 +74,36 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							<td>An email message. Every setter returns the same object, so calls can be chained.
  Addresses are checked when they are added; send() delivers to every To, Cc and Bcc
  recipient, and save() writes the same message as an .eml file.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="PostinoException" class="public" href="./postino/PostinoException.html">PostinoException</a>
+								</code>
+							</td>
+							<td>Thrown by postino for invalid input: an invalid address, header, Content-ID or MIME type,
+ a missing sender, recipient or file. Errors of the connection and of the SMTP server
+ are std.net.curl.CurlException.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>Structs</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="OAuth2" class="public" href="./postino/OAuth2.html">OAuth2</a>
+								</code>
+							</td>
+							<td>An OAuth 2.0 access token, for Email.send(url, username, OAuth2(token)).
+ A type of its own, so that a token can't be passed as a password by mistake.
 </td>
 						</tr>
 					</table>
