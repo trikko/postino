@@ -1560,7 +1560,7 @@ unittest
 		assertThrown(email.setReplyTo(bad), bad);
 	}
 
-	foreach (good; ["user@example.com", "first.last+tag@sub.example.co.uk", "x@localhost", "o'brien@example.com"])
+	foreach (good; ["user@example.com", "first.last+tag@sub.example.com", "x@localhost", "o'brien@example.com"])
 		assertNotThrown(email.addTo(good), good);
 }
 
@@ -2101,26 +2101,26 @@ unittest
 	assert(Email.punycode("münchen"d) == "mnchen-3ya");
 	assert(Email.punycode("straße"d) == "strae-oqa");
 
-	assert(Email.validateEmailAddress("info@città.it") == "info@xn--citt-3na.it");
-	assert(Email.validateEmailAddress("info@CITTÀ.it") == "info@xn--citt-3na.it");
-	assert(Email.validateEmailAddress("a@mail.bücher.de") == "a@mail.xn--bcher-kva.de");
-	assert(Email.validateEmailAddress("a@日本.jp") == "a@xn--wgv71a.jp");
+	assert(Email.validateEmailAddress("info@città.example") == "info@xn--citt-3na.example");
+	assert(Email.validateEmailAddress("info@CITTÀ.example") == "info@xn--citt-3na.example");
+	assert(Email.validateEmailAddress("a@mail.bücher.example") == "a@mail.xn--bcher-kva.example");
+	assert(Email.validateEmailAddress("a@日本.example") == "a@xn--wgv71a.example");
 	assert(Email.validateEmailAddress("a@example.com") == "a@example.com");
 
 	// NFD (e + combining grave) and NFC give the same domain
-	assert(Email.validateEmailAddress("a@città.it") == "a@xn--citt-3na.it");
+	assert(Email.validateEmailAddress("a@città.example") == "a@xn--citt-3na.example");
 
 	assertThrown!PostinoException(new Email().addTo("andrè@example.com"));
 
 	string message = new Email()
-		.setFrom("info@città.it", "Città")
-		.addTo("ufficio@bücher.de")
+		.setFrom("info@città.example", "Città")
+		.addTo("ufficio@bücher.example")
 		.setPlainTextBody("Hi")
 		.build();
 
-	assert(headersOf(message).canFind("\r\nTo: ufficio@xn--bcher-kva.de\r\n"));
-	assert(headersOf(message).canFind(" <info@xn--citt-3na.it>\r\n"));
-	assert(headersOf(message).canFind("@xn--citt-3na.it>\r\n"));    // Message-ID
+	assert(headersOf(message).canFind("\r\nTo: ufficio@xn--bcher-kva.example\r\n"));
+	assert(headersOf(message).canFind(" <info@xn--citt-3na.example>\r\n"));
+	assert(headersOf(message).canFind("@xn--citt-3na.example>\r\n"));    // Message-ID
 }
 
 // Every error of postino is a PostinoException
@@ -2193,10 +2193,10 @@ unittest
 	foreach (host; ["localhost", "127.0.0.1", "127.1.2.3", "::1"])
 		assert(Email.isLoopback(host), host);
 
-	foreach (host; ["127.evil.com", "127.0.0.1.nip.io", "localhost.evil.com", "0.0.0.0", "10.0.0.1", "::ffff:127.0.0.1", "2001:db8::1", "example.com"])
+	foreach (host; ["127.evil.example", "127.0.0.1.example", "localhost.evil.example", "0.0.0.0", "10.0.0.1", "::ffff:127.0.0.1", "2001:db8::1", "example.com"])
 		assert(!Email.isLoopback(host), host);
 
-	assert(Email.requiresStartTls("smtp://127.evil.com:587"));
+	assert(Email.requiresStartTls("smtp://127.evil.example:587"));
 
 	foreach (url; ["http://example.com", "smtp://", "smtp://:25", "smtp://[::1", "smtp://exa mple.com", "smtp://example.com\r\n"])
 		assertThrown!PostinoException(Email.smtpHost(url), url);
@@ -2258,7 +2258,7 @@ unittest
 	assert(Email.validateEmailAddress("a@ｅｘａｍｐｌｅ.com") == "a@example.com");
 	assert(Email.validateEmailAddress("a@example。com") == "a@example.com");
 	assert(Email.validateEmailAddress("a@example．com") == "a@example.com");
-	assert(Email.validateEmailAddress("a@città｡it") == "a@xn--citt-3na.it");
+	assert(Email.validateEmailAddress("a@città｡example") == "a@xn--citt-3na.example");
 
 	// Invisible characters and symbols
 	foreach (bad; ["a@exam\u00ADple.com", "a@exam\u200Bple.com", "a@exa\u200Dmple.com", "a@ex★ample.com", "a@exam＠ple.com", "a@exam（ple.com"])
@@ -2269,7 +2269,7 @@ unittest
 
 	// The length is checked after the conversion
 	string longLabel = "è".replicate(30);
-	assertThrown!PostinoException(Email.validateEmailAddress("a@" ~ [longLabel, longLabel, longLabel, longLabel, longLabel].join(".") ~ ".it"));
+	assertThrown!PostinoException(Email.validateEmailAddress("a@" ~ [longLabel, longLabel, longLabel, longLabel, longLabel].join(".") ~ ".example"));
 }
 
 // Audit 7: names and subjects that look like encoded-words are shown as they are, not decoded

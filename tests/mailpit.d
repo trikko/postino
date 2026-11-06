@@ -166,14 +166,14 @@ void main()
 
 	test!"Internationalized domains are sent as punycode"({
 		new Email()
-			.setFrom("info@città.it", "Città")
-			.addTo("ufficio@bücher.de")
+			.setFrom("info@città.example", "Città")
+			.addTo("ufficio@bücher.example")
 			.setPlainTextBody("Hi")
 			.send("smtp://localhost:" ~ smtpPlain);
 
 		auto msg = onlyMessage(apiPlain);
-		assert(msg["From"]["Address"].str == "info@xn--citt-3na.it");
-		assert(addresses(msg["To"]) == ["ufficio@xn--bcher-kva.de"]);
+		assert(msg["From"]["Address"].str == "info@xn--citt-3na.example");
+		assert(addresses(msg["To"]) == ["ufficio@xn--bcher-kva.example"]);
 	});
 
 	test!"clone() and one connection for many emails"({
