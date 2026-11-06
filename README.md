@@ -1,21 +1,30 @@
-# postino
+# <img align="left" alt="postino logo" width="100" height="100" src="https://github.com/trikko/postino/raw/main/logo.png"> postino
 
-*(italian word for «postman»)*
+[![DUB](https://img.shields.io/dub/v/postino)](https://code.dlang.org/packages/postino)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A simple and secure MIME email library for D with support for HTML, attachments, and embedded files.
+**postino** (Italian for «postman») sends email from programs written in D.
+You describe the message with a few chained calls: sender, recipients,
+subject, text and HTML body, images, attachments. postino builds a correct
+MIME message and delivers it over SMTP, or saves it as an `.eml` file. It uses
+libcurl through Phobos' `std.net.curl` and has no other dependencies.
 
 **Documentation:** [API reference](https://trikko.github.io/postino/) ·
 [for AI agents](#using-postino-with-an-ai-agent) · `dub add postino`
 
 ## Features
 
-- 🚀 **Simple API** - Send emails with just a few lines of code
-- 📧 **MIME Support** - Full multipart/alternative and multipart/related support
-- 📎 **Attachments** - Support for file attachments and embedded images
-- 🎨 **HTML Emails** - Send rich HTML emails with embedded images
-- 🔒 **Secure** - TLS or STARTTLS (required when sending a password), addresses validated, no header injection
-- 🙈 **Real Bcc** - To, Cc and Bcc all receive the email, Bcc recipients stay hidden
-- 💾 **Save as .eml** - Write the message to a file instead of sending it, e.g. in tests
+- **Text and HTML** in the same email, with images shown inside the HTML
+  (`<img src="cid:logo">`) and attachments, from files or from memory.
+- **Any language**: subjects, names, bodies and file names in UTF-8 are
+  encoded as the standards require, long lines included.
+- **TLS**: `smtps://` for implicit TLS, STARTTLS on `smtp://`. When you send a
+  password, STARTTLS is mandatory: it never travels in clear.
+- **Checked input**: an invalid address, Content-ID or MIME type throws as soon
+  as you add it, and CR/LF in subjects or names can't inject headers.
+- **Save instead of send**: `save("mail.eml")` writes exactly the message
+  `send` would deliver. Open it in a mail client, or check it in your tests.
+- **Small**: one class, `Email`, in one file.
 
 ## Quick Start
 
