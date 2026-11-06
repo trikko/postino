@@ -20,6 +20,7 @@ import std.json : JSONValue, parseJSON;
 import std.net.curl : HTTP, SMTP, get, del;
 import std.process : environment;
 import std.stdio : writeln;
+import std.string : representation;
 import etc.c.curl : CurlOption;
 
 string apiPlain, apiTls;
@@ -92,7 +93,7 @@ void main()
 			.setPlainTextBody(text)
 			.setHtmlBody(html)
 			.addEmbeddedFile(png, "logo", "image/png")
-			.addAttachment(cast(ubyte[])"a;b\n1;2\n", "text/csv", "relazione è \"finale\".csv")
+			.addAttachment("a;b\n1;2\n".representation, "text/csv", "relazione è \"finale\".csv")
 			.send("smtp://localhost:" ~ smtpPlain);
 
 		auto msg = onlyMessage(apiPlain);
@@ -187,6 +188,32 @@ void main()
 
 		foreach (m; list)
 			assert(m["To"].array.length == 1 && (m["Bcc"].isNull || m["Bcc"].array.length == 0));
+	});
+
+	test!"Credentials in the URL are refused before connecting"({
+		assertThrown!PostinoException(simpleEmail("Must not arrive").send("smtp://user:secret@" ~ host ~ ":" ~ smtpPlain));
+		assertThrown!PostinoException(simpleEmail("Must not arrive").send("smtp://" ~ host ~ ":" ~ smtpPlain ~ "?@localhost", "user", "secret"));
+		assert(messages(apiPlain).length == 0);
+	});
+
+	test!"attachFile and embedFile send the files"({
+		import std.file : write, remove, tempDir;
+		import std.path : buildPath;
+
+		string path = buildPath(tempDir, "postino-mailpit-report.pdf");
+		write(path, "%PDF-1.4 test");
+		scope(exit) remove(path);
+
+		simpleEmail("Files")
+			.setHtmlBody(`<img src="cid:logo">`)
+			.embedFile(path, "logo", "image/png")
+			.attachFile(path)
+			.send("smtp://localhost:" ~ smtpPlain);
+
+		auto msg = onlyMessage(apiPlain);
+		assert(msg["Attachments"].array[0]["FileName"].str == "postino-mailpit-report.pdf");
+		assert(msg["Attachments"].array[0]["ContentType"].str == "application/pdf");
+		assert(msg["Inline"].array[0]["ContentID"].str == "logo");
 	});
 
 	writeln("All Mailpit tests passed");
