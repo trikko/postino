@@ -32,11 +32,12 @@ Email setReplyTo(string address, string name = string.init);
 
 - `address` is only the address (`"alice@example.com"`); the display name is `name`. `"Alice <alice@example.com>"` as address is invalid.
 - Addresses are checked when they are added, and an invalid one throws `PostinoException` at once. Rejected: an empty address, more than 254 characters, spaces and control characters (CR and LF included: no header injection), any of `()<>[]\,;:"`, not exactly one `@`, a local part (before `@`) empty or longer than 64 characters, a local part that starts or ends with a dot or contains `..`, an empty domain, empty domain labels (`a@.com`, `a@b..com`), labels that start or end with `-`. Quoted local parts (`"john doe"@example.com`) are not supported.
-- Non-ASCII characters before `@` (`andrè@example.com`) throw: they need SMTPUTF8, which postino does not support. Internationalized domains are accepted and written as punycode: `info@città.it` becomes `info@xn--citt-3na.it` (normalized to NFC and lowercase first), in the headers and in the envelope.
+- Non-ASCII characters before `@` (`andrè@example.com`) throw: they need SMTPUTF8, which postino does not support. Internationalized domains are accepted and written as punycode: `info@città.it` becomes `info@xn--citt-3na.it`, in the headers and in the envelope. As browsers do (UTS #46), compatibility forms are mapped first (NFKC, lowercase): fullwidth `ｅｘａｍｐｌｅ.com` is `example.com`, the ideographic dot `。` separates labels. Invisible characters (soft hyphen, zero width space and joiner) and symbols in the domain throw. The 254-character limit is checked after the conversion.
+- Addresses and names must be valid UTF-8, or they throw.
 - `addTo`, `addCc` and `addBcc` can be called many times; `setFrom` and `setReplyTo` replace the previous value.
 - **To** and **Cc** recipients are listed in the headers. **Bcc** recipients receive the email but are never written in the message, not even in the file of `save`. All three are in the SMTP envelope (`RCPT TO`).
 - If there are no To recipients (only Cc or Bcc), the header is `To: undisclosed-recipients:;`.
-- Display names are UTF-8: names with non-ASCII characters are encoded as RFC 2047 encoded-words (`=?UTF-8?B?...?=`), names with `"\,;:<>@[]().` are quoted and escaped. CR, LF and NUL are removed.
+- Display names are UTF-8: names with non-ASCII characters are encoded as RFC 2047 encoded-words (`=?UTF-8?B?...?=`), names with `"\,;:<>@[]().` or `=?` are quoted and escaped (a name that looks like an encoded-word is shown as it is, not decoded into something else). Control characters (CR, LF, NUL, ESC, ...) are removed; tab is kept.
 
 ```d
 email.setFrom("noreply@example.com", "Example Srl")
@@ -55,26 +56,26 @@ Email setPlainTextBody(string body);
 Email setHtmlBody(string body);
 ```
 
-- All text is UTF-8. The subject is RFC 2047 encoded if it contains non-ASCII characters, split into words of at most 75 characters on folded lines; CR, LF and NUL are removed.
-- Bodies are sent as `charset="UTF-8"` with `Content-Transfer-Encoding: quoted-printable`: lines end with CRLF and are at most 76 characters, whatever the input. `\n`, `\r\n` and `\r` line endings are all accepted. HTML on a single long line is fine.
+- All text must be valid UTF-8: invalid text throws `PostinoException`. The subject is RFC 2047 encoded if it contains non-ASCII characters or `=?`, split into words of at most 75 characters on folded lines; a long ASCII subject is folded at spaces. Control characters are removed, tab is kept.
+- Bodies are sent as `charset="UTF-8"` with `Content-Transfer-Encoding: quoted-printable`: lines end with CRLF and are at most 76 characters, whatever the input. `\n`, `\r\n` and `\r` line endings are all accepted; other separators (form feed, U+2028, ...) are content and arrive as they are. HTML on a single long line is fine.
 - With both bodies the email is `multipart/alternative`: the client shows the HTML and falls back on the text. Always set a plain text body too when sending HTML: spam filters and text-only clients use it.
 - With neither, the email has an empty text body.
 
 ## Embedded files (images in the HTML)
 
 ```d
-Email addEmbeddedFile(string path, string cid, string mimeType = string.init);
-Email addEmbeddedFile(ubyte[] data, string cid, string mimeType);
+Email embedFile(string path, string cid, string mimeType = string.init);         // a file
+Email addEmbeddedFile(const(ubyte)[] data, string cid, string mimeType);         // data in memory
 ```
 
-- The HTML shows the file with `cid:` and the same id: `addEmbeddedFile("logo.png", "logo")` and `<img src="cid:logo">`.
+- The HTML shows the file with `cid:` and the same id: `embedFile("logo.png", "logo")` and `<img src="cid:logo">`.
 - `cid` is printable ASCII without spaces and without `<>()[]\,;:"`: letters, digits, `.`, `-`, `_`, `@` are safe. An invalid cid throws. The same cid added twice keeps the last.
 - `mimeType`: if empty, guessed from the extension of `path` (`image/png`, `image/jpeg`, `image/gif`, `image/svg+xml`, `image/webp`, ...); for `data` the default is `application/octet-stream`, so always give it (`"image/png"`). See "MIME types".
-- Embedded files make the email `multipart/related`, with `Content-Disposition: inline` (and the file name, for `path`).
+- Embedded files make the email `multipart/related`, with `Content-Disposition: inline` (and the file name, for a file).
 
 ```d
 email.setHtmlBody(`<h1>Hello</h1><img src="cid:banner" width="600">`)
-     .addEmbeddedFile("/srv/app/banner.jpg", "banner");
+     .embedFile("/srv/app/banner.jpg", "banner");
 
 ubyte[] png = renderChart();
 email.addEmbeddedFile(png, "chart", "image/png");
@@ -83,24 +84,29 @@ email.addEmbeddedFile(png, "chart", "image/png");
 ## Attachments
 
 ```d
-Email addAttachment(string path, string mimeType = string.init, string name = string.init);
-Email addAttachment(ubyte[] data, string mimeType, string name = string.init);
+Email attachFile(string path, string mimeType = string.init, string name = string.init);   // a file
+Email addAttachment(const(ubyte)[] data, string mimeType, string name = string.init);       // data in memory
 ```
 
-- `path`: `name` defaults to the file name of `path` (`baseName`), `mimeType` to the type guessed from the extension.
-- `data`: give a `name`, or the recipient sees a random UUID as file name. If `mimeType` is empty it is guessed from the extension of `name`.
-- The file name can be any UTF-8: non-ASCII names are written as RFC 2231 `filename*=UTF-8''...` with an ASCII `filename="..."` fallback (non-ASCII characters replaced by `_`). Quotes and backslashes are escaped, CR and LF removed.
+- `attachFile`: `name` defaults to the file name of `path` (`baseName`), `mimeType` to the type guessed from the extension. An empty path throws.
+- `addAttachment`: give a `name`, or the recipient sees a random UUID as file name. If `mimeType` is empty it is guessed from the extension of `name`. For text use `text.representation` (`import std.string : representation;`).
+- The file name can be any UTF-8: non-ASCII names are written as RFC 2231 `filename*=UTF-8''...` with an ASCII `filename="..."` fallback (non-ASCII characters replaced by `_`). Quotes and backslashes are escaped, control characters removed.
 - Attachments make the email `multipart/mixed`. Content is base64.
 
 ```d
-email.addAttachment("/tmp/report.pdf")                         // application/pdf, "report.pdf"
-     .addAttachment("/tmp/export.bin", "text/csv", "data.csv") // type and name given
-     .addAttachment(cast(ubyte[]) csv, "text/csv", "orders.csv");
+import std.string : representation;
+
+email.attachFile("/tmp/report.pdf")                          // application/pdf, "report.pdf"
+     .attachFile("/tmp/export-1234.bin", "text/csv", "data.csv")  // type and name given
+     .addAttachment(csv.representation, "text/csv", "orders.csv");
 ```
 
-### Files are read late
+### Files and data
 
-`addAttachment(path)` and `addEmbeddedFile(path, cid)` store the path only. The file is read by `send` and `save`, every time; if it does not exist then, they throw `PostinoException("File not found: ...")`. Do not delete the file before sending. The `ubyte[]` overloads keep a reference to the array: do not change it before sending.
+- `attachFile` and `embedFile` store the path only. The file is read by `send` and `save`, every time; a missing file, a directory or an unreadable file throws `PostinoException` then. Do not delete the file before sending.
+- `addAttachment` and `addEmbeddedFile` copy the data when they are called: changing the array afterwards changes nothing in the email, and `clone()` copies cannot leak each other's data.
+- Never pass text from users to `attachFile` or `embedFile`: it is a path, and the file it names would be sent.
+- `addAttachment(string path, ...)` and `addEmbeddedFile(string path, cid, ...)` of 0.1.6 still exist, deprecated: they are `attachFile` and `embedFile`, a string is always read as a path.
 
 ## MIME types
 
@@ -115,7 +121,8 @@ Email clearHeaders();
 
 - For the headers postino has no setter for: `List-Unsubscribe`, `List-Unsubscribe-Post`, `In-Reply-To`, `References`, `X-Mailer`, `X-...`. Written after `Subject`, in the order they are added; the same name can be added more than once.
 - Throws `PostinoException` for the headers postino writes itself: `MIME-Version`, `Date`, `Message-ID`, `From`, `To`, `Cc`, `Bcc`, `Reply-To`, `Subject` and every `Content-*` (case-insensitive). Use the setters for those.
-- The name is printable ASCII without spaces and `:`; the value can't contain CR, LF or NUL (it throws: values are never cleaned silently), and an ASCII value can't make the line longer than 998 characters. Non-ASCII values are RFC 2047 encoded.
+- The name is printable ASCII without spaces and `:`; the value can't contain control characters other than tab, nor invalid UTF-8 (it throws: values are never cleaned silently), and an ASCII value can't make the line longer than 998 characters.
+- Non-ASCII values, and values containing `=?`, are RFC 2047 encoded: right for unstructured headers (`X-...`, `Comments`). Structured headers (`List-Unsubscribe`, `In-Reply-To`, `References`) must be ASCII: percent-encode the URLs.
 - Values are written as given: the syntax of structured headers (`<...>` around URLs and Message-IDs) is up to you.
 
 ```d
@@ -165,6 +172,9 @@ bool send(string smtpServerUrl, string username = string.init, string password =
 - Without credentials `smtp://` is left as it is (no STARTTLS), so relays on port 25 with self-signed certificates keep working.
 - Certificates are verified by libcurl. For a self-signed server certificate, configure an `SMTP` (see below), e.g. `smtp.handle.set(CurlOption.ssl_verifypeer, 0)` (with `import etc.c.curl : CurlOption;`), only for tests.
 - An optional path in the URL is the name sent with EHLO: `smtp://smtp.example.com:587/client.example.com`.
+- Credentials in the URL (`smtp://user:pass@host`), `?` and `#` are refused with `PostinoException`, before connecting: pass the credentials to `send`, so the STARTTLS rule always applies. Read `SMTP_URL`, `SMTP_USER` and `SMTP_PASSWORD` separately.
+- Local means `localhost` or a loopback IP address (`127.0.0.0/8`, `::1`). Names are never resolved for this: `127.example.com` is a remote host.
+- The STARTTLS setting is decided at every `send`, also on a reused `SMTP` object.
 
 Common providers:
 
@@ -274,7 +284,10 @@ Boundaries, Date and Message-ID are new every time the message is built: sending
 | `addEmbeddedFile` with an invalid cid or MIME type, `addAttachment` with an invalid MIME type | `PostinoException` |
 | `addHeader` with an invalid or reserved name, or a value with CR/LF | `PostinoException` |
 | `send`/`save` without sender or without recipients | `PostinoException` |
-| `send`/`save` with a missing file | `PostinoException` |
+| `send`/`save` with a missing or unreadable file, or a directory | `PostinoException` |
+| `send` with credentials in the URL, `?` or `#`, or a scheme other than `smtp://`/`smtps://` | `PostinoException` |
+| text that is not valid UTF-8 (subject, bodies, names, header values, file names) | `PostinoException` |
+| `attachFile`/`embedFile` with an empty path | `PostinoException` |
 | `send` with `OAuth2` and an empty username or token | `PostinoException` |
 | `save` cannot write the file | `FileException` |
 | `send`: connection, TLS, STARTTLS missing, authentication, rejected recipient | `CurlException` |
@@ -286,6 +299,7 @@ Boundaries, Date and Message-ID are new every time the message is built: sending
 ```d
 import postino;
 import std.process : environment;
+import std.string : representation;
 
 void sendReport(string[] recipients, ubyte[] chartPng, string csv)
 {
@@ -296,7 +310,7 @@ void sendReport(string[] recipients, ubyte[] chartPng, string csv)
         .setPlainTextBody("The weekly report is attached.\nThe chart is in the HTML version.")
         .setHtmlBody(`<p>The weekly report is attached.</p><img src="cid:chart" alt="chart">`)
         .addEmbeddedFile(chartPng, "chart", "image/png")
-        .addAttachment(cast(ubyte[]) csv, "text/csv", "report.csv");
+        .addAttachment(csv.representation, "text/csv", "report.csv");
 
     foreach (r; recipients)
         email.addBcc(r);   // throws for an invalid address: validate before if it comes from users
@@ -345,6 +359,6 @@ For an end-to-end test, run Mailpit (`smtp://localhost:1025`) and read the messa
 
 ## Versions
 
-0.1.6 has everything in this file except `PostinoException` (errors are plain `Exception`), `addHeader`, `clearHeaders`, `OAuth2`, `clone`, the other `clear*` methods and punycode domains (non-ASCII addresses are accepted as they are).
+0.1.6 has everything in this file except `PostinoException` (errors are plain `Exception`), `addHeader`, `clearHeaders`, `OAuth2`, `clone`, the other `clear*` methods, `attachFile` and `embedFile` (there, `addAttachment(path)` and `addEmbeddedFile(path, cid)`), and punycode domains (non-ASCII addresses are accepted as they are). In 0.1.6 the data of `addAttachment`/`addEmbeddedFile` is not copied, credentials in the URL and some URLs skip the STARTTLS rule (never put credentials in the URL there), and control characters other than CR/LF/NUL reach the headers.
 
 Up to 0.1.5: only To recipients received the email (Cc and Bcc were in the headers but not in the SMTP envelope), Bcc recipients were written in the headers, `smtp://` never used STARTTLS (credentials in clear), invalid addresses threw only at `send`, CR/LF in addresses were removed instead of rejected, the cid was not checked, the `mimeType` argument of the path overloads was ignored, bodies were sent as 8-bit without Content-Transfer-Encoding, attachments were in `multipart/related`, a missing file was sent empty, and `Date`/`Message-ID` were missing. `save` came with 0.1.5. On those versions do not use `addCc`/`addBcc` and do not send credentials over `smtp://`; upgrade.

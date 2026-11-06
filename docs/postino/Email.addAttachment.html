@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Function Email.addAttachment</title>
+		<title>Email.addAttachment - multiple declarations</title>
 		<link rel="stylesheet" href="../css/style.min.css"/>
 		<script type="text/javascript" src="../js/script.min.js"></script>
 	</head>
@@ -44,24 +44,29 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Function Email.addAttachment</h1><p>Adds a file attachment to the email.
- Attachments appear as downloadable files in the email client.
+				<h1>Email.addAttachment - multiple declarations</h1>
+				<nav class="page-nav">
+					<ul>
+						<li>
+							<a href="#0">
+								Function <code>Email.addAttachment</code>
+							</a>
+						</li>
+						<li>
+							<a href="#1">
+								Function <code>Email.addAttachment</code>
+							</a>
+						</li>
+					</ul>
+				</nav><h2 id="0">Function Email.addAttachment</h2><p>Attaches data from memory to the email. The data is copied: changing the array
+ afterwards does not change the email. For text, pass <code class="lang-d"><span class="pln">text<wbr/></span><span class="pun">.</span><span class="pln">representation</span></code>
+ (from std.string).
 </p>
 				<div class="prototype">
 					<code class="lang-d">
 						<div class="single-prototype">
 				<a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addAttachment</span><span class="pun">(</span>
-				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">path</span><span class="pun">,</span>
-				<br/>
-				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">mimeType</span> <span class="pun">=</span> <span class="kwd">null</span><span class="pun">,</span>
-				<br/>
-				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">name</span> <span class="pun">=</span> <span class="kwd">null</span>
-				<br/>
-				<span class="pun">)</span><span class="pun">;</span>
-				<br/>
-				<br/>
-				<a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addAttachment</span><span class="pun">(</span>
-				<br/>&nbsp;&nbsp;<span class="typ">ubyte</span><span class="pun">[]</span> <span class="pln">data</span><span class="pun">,</span>
+				<br/>&nbsp;&nbsp;<span class="kwd">scope </span><span class="kwd">const</span><span class="pun">(</span><span class="typ">ubyte</span><span class="pun">)</span><span class="pun">[]</span> <span class="pln">data</span><span class="pun">,</span>
 				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">mimeType</span><span class="pun">,</span>
 				<br/>
 				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">name</span> <span class="pun">=</span> <span class="kwd">null</span>
@@ -71,26 +76,43 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 					</code>
 				</div>
 				<section></section>
-<section><h2>Parameters</h2>
+<section><h3>Parameters</h3>
 <table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
-<tr><td id="path">path</td><td> Path to the file to attach</td></tr>
-<tr><td id="mimeType">mimeType</td><td> Optional MIME type override (auto-detected if not provided)</td></tr>
-<tr><td id="name">name</td><td> Optional file name shown to the recipient (the base name of path if not provided)</td></tr>
+<tr><td id="data">data</td><td> The content of the file</td></tr>
+<tr><td id="mimeType">mimeType</td><td> MIME type of the data (detected from the extension of name if empty)</td></tr>
+<tr><td id="name">name</td><td> File name shown to the recipient (a random one if not provided)</td></tr>
 </table>
 </section>
-<section><h2>Returns</h2>
+<section><h3>Returns</h3>
 <p>Reference to this Email object for method chaining
 </p>
 </section>
-<section><h2>Throws</h2>
-<p>PostinoException if mimeType is not valid. A missing file is reported by send() and save()
+<section><h3>Throws</h3>
+<p>PostinoException if mimeType or name are not valid
 </p>
 </section>
-<section><h2>Example</h2>
-<pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">addAttachment</span><span class="pun">(</span><span class="str">"/path/to/document.pdf"</span><span class="pun">)
-     <wbr/>.</span><span class="pln">addAttachment</span><span class="pun">(</span><span class="str">"/path/to/report.xlsx"</span><span class="pun">);</span></code></pre>
+<section><h3>Example</h3>
+<pre class="code"><code class="lang-d"><span class="kwd">import </span><span class="pln">std<wbr/></span><span class="pun">.</span><span class="typ">string </span><span class="pun">: </span><span class="pln">representation</span><span class="pun">;
+</span><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">addAttachment</span><span class="pun">(</span><span class="pln">pdfBytes</span><span class="pun">, </span><span class="str">"application/pdf"</span><span class="pun">, </span><span class="str">"invoice.pdf"</span><span class="pun">)
+     <wbr/>.</span><span class="pln">addAttachment</span><span class="pun">(</span><span class="pln">csv<wbr/></span><span class="pun">.</span><span class="pln">representation</span><span class="pun">, </span><span class="str">"text/csv"</span><span class="pun">, </span><span class="str">"orders.csv"</span><span class="pun">);</span></code></pre>
 </section>
-
+<h2 id="1">Function Email.addAttachment</h2><p>Old name of attachFile(). A string given here is always read as a file path, never used as data.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="kwd">deprecated </span><a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addAttachment</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">path</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">mimeType</span> <span class="pun">=</span> <span class="kwd">null</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">name</span> <span class="pun">=</span> <span class="kwd">null</span>
+				<br/>
+				<span class="pun">)</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				
 			</div>
 			<footer>
 				<div id="license-info">

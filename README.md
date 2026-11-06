@@ -84,7 +84,7 @@ void main()
       </body>
       </html>
    `)
-   .addEmbeddedFile("/path/to/product.png", "product-image")
+   .embedFile("/path/to/product.png", "product-image")
    .send("smtps://smtp.example.com:465", "username", "password");
 ```
 
@@ -98,8 +98,8 @@ void main()
    .addCc("archive@example.com")
    .setSubject("Weekly Report")
    .setPlainTextBody("Please find the weekly report attached.")
-   .addAttachment("/path/to/report.pdf")
-   .addAttachment("/path/to/data.xlsx")
+   .attachFile("/path/to/report.pdf")
+   .attachFile("/path/to/data.xlsx")
    .send("smtp://internal-smtp.example.com:25");
 ```
 
@@ -124,8 +124,8 @@ new Email()
         </body>
         </html>
     `)
-    .addEmbeddedFile("/path/to/banner.jpg", "banner")
-    .addAttachment("/path/to/catalog.pdf")
+    .embedFile("/path/to/banner.jpg", "banner")
+    .attachFile("/path/to/catalog.pdf")
     .send("smtp://smtp.example.com:587", "marketing@example.com", "password");
 ```
 
@@ -149,10 +149,10 @@ new Email()
 |--------|-------------|
 | `setPlainTextBody(text)` | Set plain text content |
 | `setHtmlBody(html)` | Set HTML content |
-| `addAttachment(path, mimeType?, name?)` | Add file attachment |
-| `addAttachment(data, mimeType, name?)` | Add attachment from memory |
-| `addEmbeddedFile(path, cid, mimeType?)` | Add embedded file for HTML (`<img src="cid:...">`) |
-| `addEmbeddedFile(data, cid, mimeType)` | Add embedded file from memory |
+| `attachFile(path, mimeType?, name?)` | Attach a file (read when sending) |
+| `addAttachment(data, mimeType, name?)` | Attach data from memory (copied) |
+| `embedFile(path, cid, mimeType?)` | Embed a file for the HTML (`<img src="cid:...">`) |
+| `addEmbeddedFile(data, cid, mimeType)` | Embed data from memory (copied) |
 
 Invalid addresses, headers, Content-IDs and MIME types throw a `PostinoException` as soon as they are added.
 Internationalized domains are fine: `info@città.it` is sent as `info@xn--citt-3na.it`.
@@ -185,7 +185,8 @@ The URL decides how the connection is secured:
 | `smtp://host:25` without credentials | plain SMTP, as the server allows |
 | `smtp://localhost:...` | plain SMTP, also with credentials (local test servers) |
 
-Port 587 is STARTTLS: use `smtp://`, not `smtps://`, with it.
+Port 587 is STARTTLS: use `smtp://`, not `smtps://`, with it. Credentials go
+to `send`, never in the URL: `smtp://user:pass@host` is refused.
 
 ```d
 // Gmail with app password

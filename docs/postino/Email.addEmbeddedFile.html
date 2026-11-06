@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Function Email.addEmbeddedFile</title>
+		<title>Email.addEmbeddedFile - multiple declarations</title>
 		<link rel="stylesheet" href="../css/style.min.css"/>
 		<script type="text/javascript" src="../js/script.min.js"></script>
 	</head>
@@ -44,23 +44,28 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Function Email.addEmbeddedFile</h1><p>Adds an embedded file (inline attachment) to the email.
- Embedded files can be referenced in HTML content using their Content-ID.
+				<h1>Email.addEmbeddedFile - multiple declarations</h1>
+				<nav class="page-nav">
+					<ul>
+						<li>
+							<a href="#0">
+								Function <code>Email.addEmbeddedFile</code>
+							</a>
+						</li>
+						<li>
+							<a href="#1">
+								Function <code>Email.addEmbeddedFile</code>
+							</a>
+						</li>
+					</ul>
+				</nav><h2 id="0">Function Email.addEmbeddedFile</h2><p>Embeds data from memory in the email (inline attachment), to show it in the HTML body
+ through its Content-ID. The data is copied: changing the array afterwards does not change the email.
 </p>
 				<div class="prototype">
 					<code class="lang-d">
 						<div class="single-prototype">
 				<a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addEmbeddedFile</span><span class="pun">(</span>
-				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">path</span><span class="pun">,</span>
-				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">cid</span><span class="pun">,</span>
-				<br/>
-				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">mimeType</span> <span class="pun">=</span> <span class="kwd">null</span>
-				<br/>
-				<span class="pun">)</span><span class="pun">;</span>
-				<br/>
-				<br/>
-				<a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addEmbeddedFile</span><span class="pun">(</span>
-				<br/>&nbsp;&nbsp;<span class="typ">ubyte</span><span class="pun">[]</span> <span class="pln">data</span><span class="pun">,</span>
+				<br/>&nbsp;&nbsp;<span class="kwd">scope </span><span class="kwd">const</span><span class="pun">(</span><span class="typ">ubyte</span><span class="pun">)</span><span class="pun">[]</span> <span class="pln">data</span><span class="pun">,</span>
 				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">cid</span><span class="pun">,</span>
 				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">mimeType</span>
 				<br/>
@@ -69,26 +74,41 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 					</code>
 				</div>
 				<section></section>
-<section><h2>Parameters</h2>
+<section><h3>Parameters</h3>
 <table><col class="caption"><tr><th>Name</th><th>Description</th></tr>
-<tr><td id="path">path</td><td> Path to the file to embed</td></tr>
-<tr><td id="cid">cid</td><td> Content-ID for referencing in HTML (e.g., "image1" for src="cid:image1")</td></tr>
-<tr><td id="mimeType">mimeType</td><td> Optional MIME type override (auto-detected if not provided)</td></tr>
+<tr><td id="data">data</td><td> The content, e.g. the bytes of a PNG image</td></tr>
+<tr><td id="cid">cid</td><td> Content-ID for referencing in HTML (e.g., "chart" for src="cid:chart")</td></tr>
+<tr><td id="mimeType">mimeType</td><td> MIME type of the data (e.g., "image/png")</td></tr>
 </table>
 </section>
-<section><h2>Returns</h2>
+<section><h3>Returns</h3>
 <p>Reference to this Email object for method chaining
 </p>
 </section>
-<section><h2>Throws</h2>
-<p>PostinoException if cid or mimeType are not valid. A missing file is reported by send() and save()
+<section><h3>Throws</h3>
+<p>PostinoException if cid or mimeType are not valid
 </p>
 </section>
-<section><h2>Example</h2>
-<pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">addEmbeddedFile</span><span class="pun">(</span><span class="str">"/path/to/logo.png"</span><span class="pun">, </span><span class="str">"logo"</span><span class="pun">)
-     <wbr/>.</span><span class="pln">setHtmlBody</span><span class="pun">(</span><span class="str">"&lt;img src='cid:logo'&gt;"</span><span class="pun">);</span></code></pre>
+<section><h3>Example</h3>
+<pre class="code"><code class="lang-d"><span class="pln">email<wbr/></span><span class="pun">.</span><span class="pln">addEmbeddedFile</span><span class="pun">(</span><span class="pln">png</span><span class="pun">, </span><span class="str">"chart"</span><span class="pun">, </span><span class="str">"image/png"</span><span class="pun">)
+     <wbr/>.</span><span class="pln">setHtmlBody</span><span class="pun">(</span><span class="str">"&lt;img src='cid:chart'&gt;"</span><span class="pun">);</span></code></pre>
 </section>
-
+<h2 id="1">Function Email.addEmbeddedFile</h2><p>Old name of embedFile(). A string given here is always read as a file path, never used as data.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="kwd">deprecated </span><a href="../postino/Email.html"><span class="typ">Email</span></a> <span class="pln">addEmbeddedFile</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">path</span><span class="pun">,</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">cid</span><span class="pun">,</span>
+				<br/>
+				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">mimeType</span> <span class="pun">=</span> <span class="kwd">null</span>
+				<br/>
+				<span class="pun">)</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				
 			</div>
 			<footer>
 				<div id="license-info">

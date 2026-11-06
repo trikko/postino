@@ -46,7 +46,9 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 			<div>
 				<h1>Function Email.addHeader</h1><p>Adds a custom header, e.g. List-Unsubscribe, In-Reply-To, References or X-Mailer.
  The same header can be added more than once; headers are written in the order they are added.
- Non-ASCII values are encoded according to RFC 2047.
+ Non-ASCII values are encoded according to RFC 2047, which is right for unstructured headers
+ (X-..., Comments, Keywords): in structured ones (List-Unsubscribe, In-Reply-To, References)
+ use ASCII only, e.g. percent-encoded URLs.
 </p>
 				<div class="prototype">
 					<code class="lang-d">

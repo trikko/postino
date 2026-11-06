@@ -12,10 +12,10 @@ postino is a library for the D programming language that builds MIME emails (pla
 - **Email**: `new Email()`, then chainable setters; every setter returns the same object.
 - **Addresses**: `setFrom(address, name?)`, `addTo`, `addCc`, `addBcc`, `setReplyTo`. Checked when added: an invalid address throws `PostinoException` at once. Bcc recipients receive the email and are never in the headers. Internationalized domains become punycode.
 - **Content**: `setSubject`, `setPlainTextBody`, `setHtmlBody` (UTF-8, encoded for you: RFC 2047 headers, quoted-printable bodies).
-- **Files**: `addAttachment(path, mimeType?, name?)` or `addAttachment(ubyte[] data, mimeType, name?)`; `addEmbeddedFile(path, cid, mimeType?)` or `addEmbeddedFile(ubyte[] data, cid, mimeType)`, shown in the HTML with `src="cid:..."`.
+- **Files**: `attachFile(path, mimeType?, name?)` or `addAttachment(const(ubyte)[] data, mimeType, name?)`; `embedFile(path, cid, mimeType?)` or `addEmbeddedFile(const(ubyte)[] data, cid, mimeType)`, shown in the HTML with `src="cid:..."`. Data is copied; files are read when sending.
 - **Headers**: `addHeader(name, value)` for `List-Unsubscribe`, `In-Reply-To`, `References`, `X-...`; the headers postino writes itself are refused.
 - **Many emails**: `clone()` copies a message; `clearTo`, `clearCc`, `clearBcc`, `clearHeaders`, `clearAttachments`, `clearEmbeddedFiles`. The same `SMTP` object passed to every `send` reuses the connection.
-- **Sending**: `send(url, username?, password?, smtp?)`, or `send(url, username, OAuth2(accessToken), smtp?)` for XOAUTH2. `smtps://host:465` is implicit TLS; `smtp://host:587` with credentials requires STARTTLS; `smtp://host:25` without credentials is plain. Errors are exceptions.
+- **Sending**: `send(url, username?, password?, smtp?)`, or `send(url, username, OAuth2(accessToken), smtp?)` for XOAUTH2. `smtps://host:465` is implicit TLS; `smtp://host:587` with credentials requires STARTTLS; `smtp://host:25` without credentials is plain. Credentials go to `send`, never in the URL (refused). Errors are exceptions.
 - **Saving**: `save(path)` writes the same message as an `.eml` file, without sending it.
 
 ## Installation & Basic Usage
@@ -32,7 +32,7 @@ new Email()
     .setSubject("Hello")
     .setPlainTextBody("Hello Alice")
     .setHtmlBody("<p>Hello <b>Alice</b></p>")
-    .addAttachment("/tmp/report.pdf")
+    .attachFile("/tmp/report.pdf")
     .send("smtp://smtp.example.com:587", "user", "password");
 ```
 

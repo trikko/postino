@@ -11,6 +11,7 @@
 <url><loc>https://trikko.github.io/postino/postino/Email.addEmbeddedFile.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.addHeader.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.addTo.html</loc></url>
+<url><loc>https://trikko.github.io/postino/postino/Email.attachFile.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.clearAttachments.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.clearBcc.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.clearCc.html</loc></url>
@@ -18,6 +19,7 @@
 <url><loc>https://trikko.github.io/postino/postino/Email.clearHeaders.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.clearTo.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.clone.html</loc></url>
+<url><loc>https://trikko.github.io/postino/postino/Email.embedFile.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.save.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.send.html</loc></url>
 <url><loc>https://trikko.github.io/postino/postino/Email.send.html</loc></url>

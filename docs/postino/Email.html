@@ -67,10 +67,21 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 								<a href="../postino/Email.addAttachment.html" class="public">
 									<code>addAttachment</code>
 								</a>
+								<span class="tableEntryAnnotation">(data, mimeType, name)</span>
+							</td>
+							<td>Attaches data from memory to the email. The data is copied: changing the array
+ afterwards does not change the email. For text, pass <code class="lang-d"><span class="pln">text<wbr/></span><span class="pun">.</span><span class="pln">representation</span></code>
+ (from std.string).
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.addAttachment.html" class="public">
+									<code>addAttachment</code>
+								</a>
 								<span class="tableEntryAnnotation">(path, mimeType, name)</span>
 							</td>
-							<td>Adds a file attachment to the email.
- Attachments appear as downloadable files in the email client.
+							<td>Old name of attachFile(). A string given here is always read as a file path, never used as data.
 </td>
 						</tr>
 						<tr>
@@ -103,10 +114,20 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 								<a href="../postino/Email.addEmbeddedFile.html" class="public">
 									<code>addEmbeddedFile</code>
 								</a>
+								<span class="tableEntryAnnotation">(data, cid, mimeType)</span>
+							</td>
+							<td>Embeds data from memory in the email (inline attachment), to show it in the HTML body
+ through its Content-ID. The data is copied: changing the array afterwards does not change the email.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.addEmbeddedFile.html" class="public">
+									<code>addEmbeddedFile</code>
+								</a>
 								<span class="tableEntryAnnotation">(path, cid, mimeType)</span>
 							</td>
-							<td>Adds an embedded file (inline attachment) to the email.
- Embedded files can be referenced in HTML content using their Content-ID.
+							<td>Old name of embedFile(). A string given here is always read as a file path, never used as data.
 </td>
 						</tr>
 						<tr>
@@ -118,7 +139,9 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							</td>
 							<td>Adds a custom header, e.g. List-Unsubscribe, In-Reply-To, References or X-Mailer.
  The same header can be added more than once; headers are written in the order they are added.
- Non-ASCII values are encoded according to RFC 2047.
+ Non-ASCII values are encoded according to RFC 2047, which is right for unstructured headers
+ (X-..., Comments, Keywords): in structured ones (List-Unsubscribe, In-Reply-To, References)
+ use ASCII only, e.g. percent-encoded URLs.
 </td>
 						</tr>
 						<tr>
@@ -130,6 +153,17 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							</td>
 							<td>Adds a recipient to the email's "To" field.
  Multiple recipients can be added by calling this method multiple times.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.attachFile.html" class="public">
+									<code>attachFile</code>
+								</a>
+								<span class="tableEntryAnnotation">(path, mimeType, name)</span>
+							</td>
+							<td>Attaches a file to the email. Attachments appear as downloadable files in the email client.
+ The file is read when the email is sent or saved.
 </td>
 						</tr>
 						<tr>
@@ -202,6 +236,18 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							<td>Returns a copy of this email, to change it without touching the original:
  for example the same message for many recipients, one at a time.
  The copy shares the data of the attachments added from memory, so don't modify those arrays.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../postino/Email.embedFile.html" class="public">
+									<code>embedFile</code>
+								</a>
+								<span class="tableEntryAnnotation">(path, cid, mimeType)</span>
+							</td>
+							<td>Embeds a file in the email (inline attachment), to show it in the HTML body
+ through its Content-ID: <code class="lang-d"><span class="pun">&lt;</span><span class="pln">img src</span><span class="pun">=</span><span class="str">"cid:logo"</span><span class="pun">&gt;</span></code>.
+ The file is read when the email is sent or saved.
 </td>
 						</tr>
 						<tr>

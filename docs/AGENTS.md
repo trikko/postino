@@ -38,8 +38,8 @@ void main()
         .setSubject("Weekly report")
         .setPlainTextBody("The report is attached.")
         .setHtmlBody(`<p>The report is attached.</p><img src="cid:logo">`)
-        .addEmbeddedFile("/srv/app/logo.png", "logo")  // shown in the html as cid:logo
-        .addAttachment("/tmp/report.pdf")
+        .embedFile("/srv/app/logo.png", "logo")        // shown in the html as cid:logo
+        .attachFile("/tmp/report.pdf")
         .send("smtp://smtp.example.com:587", "user", "password");  // STARTTLS
 }
 ```
@@ -58,6 +58,8 @@ that uses `std.net.curl`.
 2. **localhost is the exception.** `smtp://localhost`, `127.x.x.x` and `[::1]`
    with credentials do not force STARTTLS (a local relay, a test server like
    Mailpit). Every other host does, internal ones too.
+   **Never put credentials in the URL** (`smtp://user:pass@host`): `send`
+   refuses it, and `?` or `#` in the URL. Pass them as arguments.
 3. **To, Cc and Bcc all receive the email.** Bcc recipients are never written
    in the headers, not even in the `.eml` of `save`. With only Bcc
    recipients the `To` header is `undisclosed-recipients:;`.
@@ -72,14 +74,14 @@ that uses `std.net.curl`.
    `info@xn--citt-3na.it`.
 5. **A sender and at least one recipient are required.** `send` and `save`
    throw without `setFrom`, or without any `addTo`/`addCc`/`addBcc`.
-6. **Names and subject are encoded for you.** Pass plain UTF-8: non-ASCII text
-   becomes RFC 2047 encoded-words, names with `.,;:@"` are quoted. CR and LF
-   in names and subject are removed (no header injection). Do not encode them
-   yourself.
+6. **Names and subject are encoded for you.** Pass plain, valid UTF-8
+   (invalid UTF-8 throws): non-ASCII text becomes RFC 2047 encoded-words,
+   names with `.,;:@"` or `=?` are quoted. Control characters in names and
+   subject are removed (no header injection). Do not encode them yourself.
 7. **Bodies are encoded for you.** Text and HTML go out as UTF-8
    quoted-printable, with CRLF line endings and short lines: pass the text as
    it is (`\n` is fine), any length, any characters.
-8. **Embedded files need a matching cid.** `addEmbeddedFile(path, "logo")` is
+8. **Embedded files need a matching cid.** `embedFile(path, "logo")` is
    shown by `<img src="cid:logo">` in the HTML body. The cid is ASCII without
    spaces or `<>` (letters, digits, `.-_@`); it throws otherwise. Adding the
    same cid twice keeps the last.
@@ -87,11 +89,15 @@ that uses `std.net.curl`.
    is guessed from the file extension (`application/octet-stream` if
    unknown). When given it must be `type/subtype` with no parameters
    (`"image/png"`, not `"text/plain; charset=utf-8"`), or it throws.
-10. **Files are read when the email is built.** `addAttachment(path)` and
-    `addEmbeddedFile(path, cid)` only store the path; `send`/`save` read it
-    and throw if it does not exist. To send bytes you already have, use the
-    `ubyte[]` overloads: `addAttachment(data, mimeType, name)` (give a name,
-    or the recipient sees a UUID) and `addEmbeddedFile(data, cid, mimeType)`.
+10. **Files and data are different methods.** `attachFile(path)` and
+    `embedFile(path, cid)` take a path: `send`/`save` read the file and throw
+    if it is missing. Bytes you already have go to `addAttachment(data,
+    mimeType, name)` (give a name, or the recipient sees a UUID) and
+    `addEmbeddedFile(data, cid, mimeType)`, which take `const(ubyte)[]` and
+    copy it; for text pass `text.representation`. Never pass text from users
+    to `attachFile`: it would send the file it names. `addAttachment(string)`
+    and `addEmbeddedFile(string, ...)` are deprecated aliases of the path
+    methods.
 11. **`send` is blocking and returns `true`.** Errors are exceptions, never
     `false`: `PostinoException` for invalid input (address, header, cid, MIME
     type, missing sender, recipient or file), `CurlException` for connection,
@@ -134,8 +140,11 @@ they are missing, or do them outside postino.
 ## If the project uses another version
 
 This file documents 0.1.7. `PostinoException`, `addHeader`, `OAuth2`,
-`clone`, the `clear*` methods and punycode domains came with 0.1.7: on 0.1.6
-errors are plain `Exception` and those methods do not exist.
+`clone`, the `clear*` methods, `attachFile`, `embedFile` and punycode domains
+came with 0.1.7: on 0.1.6 errors are plain `Exception`, those methods do not
+exist (use `addAttachment(path)` and `addEmbeddedFile(path, cid)`), the data of
+attachments is not copied, and credentials in the URL skip the STARTTLS rule:
+never put them there.
 
 Up to 0.1.5 Cc and Bcc recipients did **not** receive the email (only To did),
 Bcc was written in the headers, `smtp://` never used STARTTLS (credentials in
