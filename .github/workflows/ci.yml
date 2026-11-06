@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    name: Linux / ${{ matrix.dc }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dc: [dmd-latest, ldc-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: ${{ matrix.dc }}
+
+      - name: Build
+        run: dub build
+
+      - name: Unit tests
+        run: dub test
+
+      - name: End-to-end tests (Mailpit in docker)
+        run: tests/mailpit.sh
