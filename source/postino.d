@@ -80,7 +80,7 @@ class Email
 	auto setFrom(string address, string name = string.init)
 	{
 		this.from = Recipient(validateEmailAddress(address), validateText("name", name));
-		return this;
+		return renew();
 	}
 
 	/**
@@ -104,7 +104,7 @@ class Email
 	auto addTo(string address, string name = string.init)
 	{
 		this.to ~= Recipient(validateEmailAddress(address), validateText("name", name));
-		return this;
+		return renew();
 	}
 
 	/**
@@ -125,7 +125,7 @@ class Email
 	auto setSubject(string subject)
 	{
 		this.subject = validateText("subject", subject);
-		return this;
+		return renew();
 	}
 
 	/**
@@ -150,7 +150,7 @@ class Email
 	auto addCc(string address, string name = string.init)
 	{
 		this.cc ~= Recipient(validateEmailAddress(address), validateText("name", name));
-		return this;
+		return renew();
 	}
 
 	/**
@@ -176,7 +176,7 @@ class Email
 	auto addBcc(string address, string name = string.init)
 	{
 		this.bcc ~= Recipient(validateEmailAddress(address), validateText("name", name));
-		return this;
+		return renew();
 	}
 
 	/**
@@ -200,7 +200,7 @@ class Email
 	auto setReplyTo(string address, string name = string.init)
 	{
 		this.replyTo = Recipient(validateEmailAddress(address), validateText("name", name));
-		return this;
+		return renew();
 	}
 
 	/**
@@ -221,7 +221,7 @@ class Email
 	auto setPlainTextBody(string body)
 	{
 		this.plainTextBody = validateText("plain text body", body);
-		return this;
+		return renew();
 	}
 
 	/**
@@ -242,7 +242,7 @@ class Email
 	auto setHtmlBody(string body)
 	{
 		this.htmlBody = validateText("html body", body);
-		return this;
+		return renew();
 	}
 
 	/**
@@ -272,7 +272,7 @@ class Email
 	auto addHeader(string name, string value)
 	{
 		this.headers ~= Header(validateHeaderName(name), validateHeaderValue(name, value));
-		return this;
+		return renew();
 	}
 
 	/**
@@ -305,7 +305,7 @@ class Email
 			mimeType = getMimeType(path);
 
 		this.embeddedFiles[validateContentId(cid)] = Attachment(validateText("file name", baseName(path)), path, null, validateMimeType(mimeType), true);
-		return this;
+		return renew();
 	}
 
 	/**
@@ -333,7 +333,7 @@ class Email
 			mimeType = "application/octet-stream";
 
 		this.embeddedFiles[validateContentId(cid)] = Attachment(string.init, string.init, data.idup, validateMimeType(mimeType), false);
-		return this;
+		return renew();
 	}
 
 	/// Old name of embedFile(). A string given here is always read as a file path, never used as data.
@@ -375,7 +375,7 @@ class Email
 			mimeType = getMimeType(path);
 
 		this.attachments ~= Attachment(validateText("file name", name), path, null, validateMimeType(mimeType), true);
-		return this;
+		return renew();
 	}
 
 	/**
@@ -410,7 +410,7 @@ class Email
 			mimeType = getMimeType(name);
 
 		this.attachments ~= Attachment(validateText("file name", name), string.init, data.idup, validateMimeType(mimeType), false);
-		return this;
+		return renew();
 	}
 
 	/// Old name of attachFile(). A string given here is always read as a file path, never used as data.
@@ -421,22 +421,42 @@ class Email
 	}
 
 	/// Removes every recipient added with addTo().
-	auto clearTo() { this.to = null; return this; }
+	auto clearTo() { this.to = null; return renew(); }
 
 	/// Removes every recipient added with addCc().
-	auto clearCc() { this.cc = null; return this; }
+	auto clearCc() { this.cc = null; return renew(); }
 
 	/// Removes every recipient added with addBcc().
-	auto clearBcc() { this.bcc = null; return this; }
+	auto clearBcc() { this.bcc = null; return renew(); }
 
 	/// Removes every header added with addHeader().
-	auto clearHeaders() { this.headers = null; return this; }
+	auto clearHeaders() { this.headers = null; return renew(); }
 
 	/// Removes every file added with addEmbeddedFile().
-	auto clearEmbeddedFiles() { this.embeddedFiles = null; return this; }
+	auto clearEmbeddedFiles() { this.embeddedFiles = null; return renew(); }
 
 	/// Removes every file added with addAttachment().
-	auto clearAttachments() { this.attachments = null; return this; }
+	auto clearAttachments() { this.attachments = null; return renew(); }
+
+	/**
+	 * Makes the next send() or save() build a new message: new Date, Message-ID and boundaries,
+	 * and the files of attachFile() and embedFile() are read again.
+	 * Without it, send() and save() reuse the message built the first time, until a setter changes the email.
+	 *
+	 * Returns: Reference to this Email object for method chaining
+	 *
+	 * Example:
+	 * ---
+	 * email.send(url, user, password);    // message A
+	 * email.save("sent/a.eml");           // the same message A
+	 * email.renew().send(url, user, password); // message B, with a new Message-ID
+	 * ---
+	 */
+	auto renew()
+	{
+		builtMessage = null;
+		return this;
+	}
 
 	/**
 	 * Returns a copy of this email, to change it without touching the original:
@@ -561,6 +581,9 @@ class Email
 	 * Saves the email as a .eml file to the specified path.
 	 * The .eml format is a standard email format that can be opened by most email clients.
 	 * The file contains exactly the message that send() would deliver: Bcc recipients are not in it.
+	 * The message is built once: after a send(), save() writes the same message, with the same
+	 * Date, Message-ID and boundaries, for example to keep a copy of what was sent.
+	 * Any setter, or renew(), makes the next send() or save() build a new one.
 	 *
 	 * Params:
 	 *     path = The file path where the .eml file will be saved
@@ -658,7 +681,17 @@ class Email
 		}
 	}
 
+	// The message, built once: send() and save() use the same one, with the same Date, Message-ID
+	// and boundaries, until a setter changes the email
 	string build()
+	{
+		if (builtMessage is null)
+			builtMessage = compose();
+
+		return builtMessage;
+	}
+
+	string compose()
 	{
 		if (from.address.length == 0)
 			throw new PostinoException("Missing sender: call setFrom()");
@@ -1431,6 +1464,8 @@ class Email
 	string plainTextBody;
 	string htmlBody;
 
+	string builtMessage;
+
 }
 
 version(unittest)
@@ -1767,6 +1802,51 @@ unittest
 	// Every line ends with CRLF and is short
 	foreach (line; message.split("\r\n"))
 		assert(!line.canFind("\n") && !line.canFind("\r") && line.length <= 998);
+}
+
+// The message is built once: save() after save() (or after send()) writes the same message,
+// a setter or clone() builds a new one
+unittest
+{
+	string first = tempFile("first.eml"), second = tempFile("second.eml");
+	scope(exit) { remove(first); remove(second); }
+
+	auto email = new Email()
+		.setFrom("sender@example.com")
+		.addTo("to@example.com")
+		.setPlainTextBody("Hi")
+		.setHtmlBody("<b>Hi</b>")
+		.addAttachment(cast(ubyte[])"%PDF", "application/pdf", "report.pdf");
+
+	email.save(first).save(second);
+	assert(readText(first) == readText(second));
+
+	string messageIdOf(string message)
+	{
+		auto headers = headersOf(message);
+		auto start = headers.indexOf("\r\nMessage-ID: ");
+		return headers[start .. start + headers[start + 2 .. $].indexOf("\r\n") + 2];
+	}
+
+	string cloned = email.clone().build();
+	assert(messageIdOf(cloned) != messageIdOf(readText(first)));
+
+	email.setSubject("Changed").save(second);
+	assert(messageIdOf(readText(second)) != messageIdOf(readText(first)));
+	assert(headersOf(readText(second)).canFind("\r\nSubject: Changed\r\n"));
+
+	// renew() gives a new message without changing anything, and reads the files again
+	email.save(first).renew().save(second);
+	assert(messageIdOf(readText(second)) != messageIdOf(readText(first)));
+
+	string data = tempFile("data.txt");
+	scope(exit) remove(data);
+	write(data, "old");
+	email.attachFile(data, "text/plain").save(first);
+	write(data, "new");
+	assert(email.save(second).build() == readText(first));
+	assert(!readText(second).canFind("bmV3")); // "new" in base64: the cached message
+	assert(email.renew().save(second).build().canFind("bmV3"));
 }
 
 version(unittest)

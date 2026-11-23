@@ -60,6 +60,26 @@ void main()
 		assert(!raw.canFind("\nBcc:"));
 	});
 
+	test!"save() after send() writes the message that was sent"({
+		import std.file : tempDir, readText, remove;
+		import std.path : buildPath;
+
+		string path = buildPath(tempDir, "postino-mailpit-sent.eml");
+		scope(exit) remove(path);
+
+		auto email = new Email()
+			.setFrom("sender@example.com")
+			.addTo("alice@example.com")
+			.setSubject("Sent copy")
+			.setPlainTextBody("Hi")
+			.setHtmlBody("<b>Hi</b>");
+
+		email.send("smtp://localhost:" ~ smtpPlain);
+		email.save(path);
+
+		assert(normalize(rawMessage(apiPlain, onlyMessage(apiPlain))) == normalize(readText(path)));
+	});
+
 	test!"Only Bcc recipients"({
 		new Email()
 			.setFrom("sender@example.com")

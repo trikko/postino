@@ -121,8 +121,9 @@ that uses `std.net.curl`.
     connection is reused instead of opening one per email. Credentials go to
     `send` every time; with different ones a new connection is opened.
     `clearTo`, `clearCc`, `clearBcc`, `clearHeaders`, `clearAttachments` and
-    `clearEmbeddedFiles` empty what the matching `add*` added. Every send
-    gets new boundaries, Date and Message-ID.
+    `clearEmbeddedFiles` empty what the matching `add*` added. The message is built
+    once: sending it again or `save` give the same Date, Message-ID and
+    boundaries until a setter changes the email or `renew()` is called; each `clone()` gets new ones.
 15. **Custom headers with `addHeader(name, value)`**: `List-Unsubscribe`,
     `List-Unsubscribe-Post`, `In-Reply-To`, `References`, `X-...`. It throws
     for the headers postino writes itself (`From`, `To`, `Cc`, `Bcc`,

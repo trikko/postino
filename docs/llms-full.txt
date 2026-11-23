@@ -103,7 +103,7 @@ email.attachFile("/tmp/report.pdf")                          // application/pdf,
 
 ### Files and data
 
-- `attachFile` and `embedFile` store the path only. The file is read by `send` and `save`, every time; a missing file, a directory or an unreadable file throws `PostinoException` then. Do not delete the file before sending.
+- `attachFile` and `embedFile` store the path only. The file is read by the first `send` or `save`; later ones reuse the built message until a setter changes the email or `renew()` is called. A missing file, a directory or an unreadable file throws `PostinoException` then. Do not delete the file before sending.
 - `addAttachment` and `addEmbeddedFile` copy the data when they are called: changing the array afterwards changes nothing in the email, and `clone()` copies cannot leak each other's data.
 - Never pass text from users to `attachFile` or `embedFile`: it is a path, and the file it names would be sent.
 - `addAttachment(string path, ...)` and `addEmbeddedFile(string path, cid, ...)` of 0.1.6 still exist, deprecated: they are `attachFile` and `embedFile`, a string is always read as a path.
@@ -142,11 +142,13 @@ email.setSubject("Re: Order 1234")
 Email clone();
 Email clearTo();  Email clearCc();  Email clearBcc();
 Email clearHeaders();  Email clearAttachments();  Email clearEmbeddedFiles();
+Email renew();
 ```
 
 - `clone()` returns an independent copy: sender, recipients, Reply-To, subject, bodies, headers, embedded files and attachments. Changing the copy does not change the original. Attachments added from memory share the same `ubyte[]`: do not modify it.
 - Each `clear*` empties what the matching `add*` added. There is no way to remove a single recipient.
 - `setFrom`, `setReplyTo`, `setSubject` and the bodies are replaced by calling them again.
+- `renew()` makes the next `send` or `save` build a new message (new Date, Message-ID and boundaries, files of `attachFile`/`embedFile` read again). Without it, `send` and `save` reuse the message built the first time until a setter changes the email.
 
 ## Sending
 
@@ -254,7 +256,7 @@ foreach (s; subscribers)
 Email save(string path);
 ```
 
-Writes the message as an `.eml` file (RFC 5322, CRLF line endings) that mail clients open. It is exactly what `send` would deliver: same headers, Bcc excluded. Nothing is sent. Throws like `send` for a missing sender, missing recipients or a missing file, and if the file cannot be written. Use it in tests and to preview an email.
+Writes the message as an `.eml` file (RFC 5322, CRLF line endings) that mail clients open. It is exactly what `send` would deliver: same headers, Bcc excluded. The message is built once, so `send` followed by `save` (or the other way around) gives the same Date, Message-ID and boundaries, for example to keep a copy of what was sent in a Sent folder. Any setter, or `renew()`, makes the next `send` or `save` build a new message; `clone()` always does. Nothing is sent. Throws like `send` for a missing sender, missing recipients or a missing file, and if the file cannot be written. Use it in tests and to preview an email.
 
 ```d
 email.save("/tmp/preview.eml");

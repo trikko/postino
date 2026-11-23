@@ -166,6 +166,7 @@ Internationalized domains are fine: `info@città.it` is sent as `info@xn--citt-3
 | Method | Description |
 |--------|-------------|
 | `clone()` | Independent copy of the email, e.g. to send the same message to many people |
+| `renew()` | The next `send`/`save` builds a new message (new Date and Message-ID, files read again) |
 | `clearTo()`, `clearCc()`, `clearBcc()` | Remove the recipients added with the matching `add*` |
 | `clearHeaders()`, `clearAttachments()`, `clearEmbeddedFiles()` | Remove what the matching `add*` added |
 
