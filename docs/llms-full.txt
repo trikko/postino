@@ -2,7 +2,7 @@
 
 postino is a library for the D programming language that builds MIME emails (plain text, HTML, embedded images, attachments) and sends them over SMTP through libcurl (`std.net.curl`), or saves them as `.eml` files. One class, `Email`, with chainable setters. MIT license. `import postino;`.
 
-This file documents version 0.1.7; see "Versions" at the end for what older versions do differently.
+This file documents version 0.1.8; see "Versions" at the end for what older versions do differently.
 
 - Rules for agents: https://trikko.github.io/postino/AGENTS.md
 - API documentation: https://trikko.github.io/postino/
@@ -360,6 +360,8 @@ For an end-to-end test, run Mailpit (`smtp://localhost:1025`) and read the messa
 - No receiving mail (IMAP, POP3).
 
 ## Versions
+
+0.1.7 has everything in this file except `renew()`, and every `send` and `save` builds a new message, with a new Date, Message-ID and boundaries: a `save` after a `send` does not write the message that was sent, and `attachFile`/`embedFile` files are read at every call.
 
 0.1.6 has everything in this file except `PostinoException` (errors are plain `Exception`), `addHeader`, `clearHeaders`, `OAuth2`, `clone`, the other `clear*` methods, `attachFile` and `embedFile` (there, `addAttachment(path)` and `addEmbeddedFile(path, cid)`), and punycode domains (non-ASCII addresses are accepted as they are). In 0.1.6 the data of `addAttachment`/`addEmbeddedFile` is not copied, credentials in the URL and some URLs skip the STARTTLS rule (never put credentials in the URL there), and control characters other than CR/LF/NUL reach the headers.
 

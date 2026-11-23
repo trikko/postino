@@ -1,6 +1,6 @@
 # postino: MIME email over SMTP for D
 
-postino is a library for the D programming language that builds MIME emails (plain text, HTML, embedded images, attachments) and sends them over SMTP through libcurl (`std.net.curl`), or saves them as `.eml` files. One class, `Email`, with chainable setters. Version 0.1.7, MIT license.
+postino is a library for the D programming language that builds MIME emails (plain text, HTML, embedded images, attachments) and sends them over SMTP through libcurl (`std.net.curl`), or saves them as `.eml` files. One class, `Email`, with chainable setters. Version 0.1.8, MIT license.
 
 - Full reference: https://trikko.github.io/postino/llms-full.txt
 - Rules for agents: https://trikko.github.io/postino/AGENTS.md (as a skill: https://trikko.github.io/postino/SKILL.md)
@@ -16,7 +16,7 @@ postino is a library for the D programming language that builds MIME emails (pla
 - **Headers**: `addHeader(name, value)` for `List-Unsubscribe`, `In-Reply-To`, `References`, `X-...`; the headers postino writes itself are refused.
 - **Many emails**: `clone()` copies a message; `clearTo`, `clearCc`, `clearBcc`, `clearHeaders`, `clearAttachments`, `clearEmbeddedFiles`. The same `SMTP` object passed to every `send` reuses the connection.
 - **Sending**: `send(url, username?, password?, smtp?)`, or `send(url, username, OAuth2(accessToken), smtp?)` for XOAUTH2. `smtps://host:465` is implicit TLS; `smtp://host:587` with credentials requires STARTTLS; `smtp://host:25` without credentials is plain. Credentials go to `send`, never in the URL (refused). Errors are exceptions.
-- **Saving**: `save(path)` writes the same message as an `.eml` file, without sending it.
+- **Saving**: `save(path)` writes the same message as an `.eml` file, without sending it. The message is built once: `save` after `send` writes exactly what was sent; `renew()` forces a new Date, Message-ID and boundaries.
 
 ## Installation & Basic Usage
 

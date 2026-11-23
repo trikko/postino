@@ -140,7 +140,11 @@ they are missing, or do them outside postino.
 
 ## If the project uses another version
 
-This file documents 0.1.7. `PostinoException`, `addHeader`, `OAuth2`,
+This file documents 0.1.8. On 0.1.7 every `send` and `save` builds a new
+message (new Date, Message-ID and boundaries) and there is no `renew()`: the
+`.eml` written after a `send` is not the message that was sent.
+
+`PostinoException`, `addHeader`, `OAuth2`,
 `clone`, the `clear*` methods, `attachFile`, `embedFile` and punycode domains
 came with 0.1.7: on 0.1.6 errors are plain `Exception`, those methods do not
 exist (use `addAttachment(path)` and `addEmbeddedFile(path, cid)`), the data of

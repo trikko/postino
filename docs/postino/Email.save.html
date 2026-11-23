@@ -47,6 +47,9 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<h1>Function Email.save</h1><p>Saves the email as a .eml file to the specified path.
  The .eml format is a standard email format that can be opened by most email clients.
  The file contains exactly the message that send() would deliver: Bcc recipients are not in it.
+ The message is built once: after a send(), save() writes the same message, with the same
+ Date, Message-ID and boundaries, for example to keep a copy of what was sent.
+ Any setter, or renew(), makes the next send() or save() build a new one.
 </p>
 				<div class="prototype">
 					<code class="lang-d">

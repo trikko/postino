@@ -252,6 +252,18 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</tr>
 						<tr>
 							<td>
+								<a href="../postino/Email.renew.html" class="public">
+									<code>renew</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Makes the next send() or save() build a new message: new Date, Message-ID and boundaries,
+ and the files of attachFile() and embedFile() are read again.
+ Without it, send() and save() reuse the message built the first time, until a setter changes the email.
+</td>
+						</tr>
+						<tr>
+							<td>
 								<a href="../postino/Email.save.html" class="public">
 									<code>save</code>
 								</a>
@@ -260,6 +272,9 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							<td>Saves the email as a .eml file to the specified path.
  The .eml format is a standard email format that can be opened by most email clients.
  The file contains exactly the message that send() would deliver: Bcc recipients are not in it.
+ The message is built once: after a send(), save() writes the same message, with the same
+ Date, Message-ID and boundaries, for example to keep a copy of what was sent.
+ Any setter, or renew(), makes the next send() or save() build a new one.
 </td>
 						</tr>
 						<tr>

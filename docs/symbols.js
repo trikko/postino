@@ -17,6 +17,7 @@ var symbols = [
 {name: 'postino.Email.clearTo', kind: "functiondeclaration", path: './postino/Email.clearTo.html', attributes: ["auto", "return", "pure", "nothrow", "nogc", "safe"]},
 {name: 'postino.Email.clone', kind: "functiondeclaration", path: './postino/Email.clone.html', attributes: []},
 {name: 'postino.Email.embedFile', kind: "functiondeclaration", path: './postino/Email.embedFile.html', attributes: ["auto"]},
+{name: 'postino.Email.renew', kind: "functiondeclaration", path: './postino/Email.renew.html', attributes: ["auto", "return", "pure", "nothrow", "nogc", "safe"]},
 {name: 'postino.Email.save', kind: "functiondeclaration", path: './postino/Email.save.html', attributes: ["auto"]},
 {name: 'postino.Email.send', kind: "functiondeclaration", path: './postino/Email.send.html', attributes: []},
 {name: 'postino.Email.setFrom', kind: "functiondeclaration", path: './postino/Email.setFrom.html', attributes: ["auto", "return"]},
